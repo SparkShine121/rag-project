@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import tomllib
 from pathlib import Path
 from typing import Literal
@@ -40,9 +41,14 @@ class Settings(BaseSettings):
 
     @classmethod
     def load(cls, path: Path | None = None) -> Settings:
-        if path is None:
-            return cls()
-        data = tomllib.loads(path.read_text(encoding="utf-8"))
-        if "chunk" in data and isinstance(data["chunk"], dict):
-            data["chunk"] = ChunkConfig(**data["chunk"])
+        data: dict = {}
+        if path is not None:
+            data = tomllib.loads(path.read_text(encoding="utf-8"))
+            if "chunk" in data and isinstance(data["chunk"], dict):
+                data["chunk"] = ChunkConfig(**data["chunk"])
+        # 环境变量优先级高于 toml：env 接管的字段不传 init kwargs
+        #（BaseSettings 的 init 优先级最高，会让 toml 反压 env）
+        for key in list(data):
+            if key.upper() in os.environ or f"RAGDB_{key.upper()}" in os.environ:
+                data.pop(key)
         return cls(**data)

@@ -5,6 +5,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from pathlib import Path
 
+import frontmatter
+
 from ragdb.ingest.schema import (
     ChangeSet,
     FileStamp,
@@ -40,8 +42,9 @@ class ObsidianConnector(SourceConnector):
     def _read(self, p: Path) -> RawDocument:
         rel = p.relative_to(self._vault).as_posix()
         text = p.read_text(encoding="utf-8")
+        body = frontmatter.loads(text).content  # 标题提取须跳过 frontmatter
         title = p.stem
-        for line in text.splitlines():
+        for line in body.splitlines():
             if line.startswith("# ") and not line.startswith("##"):
                 title = line[2:].strip()
                 break

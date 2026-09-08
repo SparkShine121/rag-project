@@ -49,3 +49,12 @@ def test_same_hash_still_unchanged(tmp_path: Path):
     os.utime(vault / "笔记1.md", (0, 0))  # 只动 mtime 不动内容
     cs = conn.fetch_changes(known)
     assert not cs.modified and not cs.added
+
+
+def test_title_ignores_frontmatter_heading(tmp_path: Path):
+    vault = make_vault(tmp_path)
+    (vault / "fm_title.md").write_text(
+        "---\ntags: [X]\n---\n# 这不是标题是注释\n# 真标题\n正文", encoding="utf-8"
+    )
+    docs = {d.source_id: d for d in ObsidianConnector(vault).fetch_all()}
+    assert docs["fm_title.md"].title == "真标题"

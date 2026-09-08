@@ -39,8 +39,11 @@ def make_vault(root: Path) -> Path:
 
 
 def stamps(vault: Path) -> dict[str, tuple[float, int, str]]:
-    """对 vault 现有 md 计算已知戳（mtime,size,hash），模拟已同步一轮的状态。"""
-    return {
-        doc.source_id: (doc.metadata["mtime"], len(doc.content), doc.content_hash)
-        for doc in ObsidianConnector(vault).fetch_all()
-    }
+    """对 vault 现有 md 计算已知戳（mtime,st_size,hash），模拟已同步一轮的状态。
+    size 语义必须与 connector 的 stat().st_size 一致（字节数，非字符数）。"""
+    conn = ObsidianConnector(vault)
+    out: dict[str, tuple[float, int, str]] = {}
+    for doc in conn.fetch_all():
+        st = (vault / doc.source_id).stat()
+        out[doc.source_id] = (st.st_mtime, st.st_size, doc.content_hash)
+    return out

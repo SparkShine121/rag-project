@@ -30,3 +30,10 @@ def test_dtype_rejects_invalid(tmp_path: Path):
     cfg.write_text('dtype = "int8"\n', encoding="utf-8")
     with pytest.raises(ValidationError):
         Settings.load(path=cfg)
+
+
+def test_env_overrides_toml(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    cfg = tmp_path / "ragdb.toml"
+    cfg.write_text("port = 9000\n", encoding="utf-8")
+    monkeypatch.setenv("RAGDB_PORT", "7000")
+    assert Settings.load(path=cfg).port == 7000
