@@ -61,3 +61,12 @@ def build_mcp(core) -> FastMCP:
         return _tool_list_notes(core, folder=folder, tag=tag)
 
     return mcp
+
+
+def main() -> None:
+    """console script `ragdb-mcp` 入口：stdio 传输，只读进程。"""
+    from ragdb.config import Settings
+    from ragdb.core import Core
+
+    core = Core.from_settings(Settings.load())
+    build_mcp(core).run(transport="stdio")
