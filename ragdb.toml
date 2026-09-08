@@ -1,0 +1,48 @@
+# ragdb 配置（2026-09-08 定版）
+# 覆盖方式优先级：环境变量 RAGDB_* > 本文件 > 内置默认值
+# 改动需 ragdb rebuild 的参数在注释中标了 ⚠️
+# 完整语义见 docs/superpowers/specs/2026-09-08-rag-database-design.md §5.1
+
+# ── 路径 ──────────────────────────────────────────────
+# 知识库根目录（全链路只读，绝不写入）
+vault_path = "~/Documents/Obsidian Vault"
+# 向量库 / 同步状态库 / 锁文件的存放目录
+data_dir = "~/Library/Application Support/ragdb"
+
+# ── 服务 ─────────────────────────────────────────────
+# FastAPI 监听端口（固定绑定 127.0.0.1，不暴露公网）
+port = 8770
+# 后台增量同步周期（秒）；0 = 关闭循环，仅手动/CLI 触发
+interval_secs = 30
+
+# ── 检索 ─────────────────────────────────────────────
+# 向量召回候选数（进重排前的池子）
+recall_k = 20
+# 最终返回条数
+top_k = 5
+# 交叉编码精排只取稠密分前 N 名——延迟主项（M4 实测约 100ms/对：
+# 5 → 0.7-1.2s，10 → 2.4s；冒烟验证两者 top1 一致）
+rerank_top_k = 5
+# 单次检索返回内容的 token 预算（超出从低分笔记起裁剪）
+token_budget = 3000
+
+# ── 切块（改动需 ragdb rebuild ⚠️）────────────────────
+[chunk]
+# 短于此字符数的段落并入上级块
+min_chars = 100
+# 超过此 token 数的节按段落二次切分
+max_tokens = 500
+# 整笔记 token 低于此值时整篇返回（不按块拆）
+short_note_tokens = 600
+
+# ── 模型（改动需 ragdb rebuild ⚠️，向量维度与模型绑定）──
+# 嵌入模型（输出 1024 维，维度自动推导建表）
+embed_model = "BAAI/bge-m3"
+# 重排模型
+rerank_model = "BAAI/bge-reranker-v2-m3"
+# 推理设备：mps / cpu（FlagEmbedding 需显式传 devices，勿依赖自动探测）
+device = "mps"
+# 推理精度：float16（MPS 数值不稳时降 float32）
+dtype = "float16"
+# 嵌入批大小
+embed_batch = 32
