@@ -78,6 +78,7 @@ class Core:
             self.embedder, self.reranker, self.store,
             self.chunker.count,
             recall_k=self.settings.recall_k, top_k=self.settings.top_k,
+            rerank_top_k=self.settings.rerank_top_k,
             token_budget=self.settings.token_budget,
             short_note_tokens=self.settings.chunk.short_note_tokens,
         )

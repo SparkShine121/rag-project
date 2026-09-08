@@ -14,8 +14,8 @@ TokenCounter = Callable[[str], int]
 class Retriever:
     def __init__(
         self, embedder, reranker, store, token_counter: TokenCounter, *,
-        recall_k: int = 20, top_k: int = 5, token_budget: int = 3000,
-        short_note_tokens: int = 600,
+        recall_k: int = 20, top_k: int = 5, rerank_top_k: int = 10,
+        token_budget: int = 3000, short_note_tokens: int = 600,
     ):
         self._embedder = embedder
         self._reranker = reranker
@@ -23,6 +23,7 @@ class Retriever:
         self._counter = token_counter
         self._recall_k = recall_k
         self._top_k = top_k
+        self._rerank_top_k = rerank_top_k
         self._budget = token_budget
         self._short = short_note_tokens
 
@@ -37,9 +38,11 @@ class Retriever:
         )
         if not hits:
             return []
-        scores = self._reranker.rerank(query, [h.content for h in hits])
+        # 交叉编码昂贵（M4 实测约 100ms/对）：只对稠密分前 rerank_top_k 精排
+        candidates = hits[: self._rerank_top_k]
+        scores = self._reranker.rerank(query, [h.content for h in candidates])
         ranked = sorted(
-            zip(hits, scores, strict=True), key=lambda p: p[1], reverse=True
+            zip(candidates, scores, strict=True), key=lambda p: p[1], reverse=True
         )[:k]
         return aggregate(
             ranked, store=self._store, token_counter=self._counter,

@@ -36,7 +36,7 @@ class BGEM3Embedder:
         dtype: str = "float16", batch_size: int = 32,
     ):
         self._model_name = model_name
-        self._device = device
+        self._devices = [device] if device else None
         self._dtype = dtype
         self._batch_size = batch_size
         self._model = None
@@ -46,9 +46,11 @@ class BGEM3Embedder:
         if self._model is None:
             from FlagEmbedding import BGEM3FlagModel
 
+            # FlagEmbedding 的设备自动探测只认 CUDA：必须显式传 devices，
+            # 否则 MPS 落回 CPU，且 CPU+fp16 是最慢组合（真实冒烟实测）
             self._model = BGEM3FlagModel(
                 self._model_name, use_fp16=(self._dtype == "float16"),
-                device=self._device,
+                devices=self._devices,
             )
         return self._model
 
@@ -70,7 +72,7 @@ class BGEM3Reranker:
         dtype: str = "float16",
     ):
         self._model_name = model_name
-        self._device = device
+        self._devices = [device] if device else None
         self._dtype = dtype
         self._model = None
 
@@ -81,7 +83,7 @@ class BGEM3Reranker:
 
             self._model = FlagReranker(
                 self._model_name, use_fp16=(self._dtype == "float16"),
-                device=self._device,
+                devices=self._devices,
             )
         return self._model
 

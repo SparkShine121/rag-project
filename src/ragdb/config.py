@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     interval_secs: int = 30
     recall_k: int = 20
     top_k: int = 5
+    rerank_top_k: int = 10  # 交叉编码只精排稠密分前 N 名（M4 实测约 100ms/对）
     token_budget: int = 3000
     chunk: ChunkConfig = Field(default_factory=ChunkConfig)
     embed_model: str = "BAAI/bge-m3"

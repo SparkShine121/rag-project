@@ -37,3 +37,7 @@ def test_env_overrides_toml(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     cfg.write_text("port = 9000\n", encoding="utf-8")
     monkeypatch.setenv("RAGDB_PORT", "7000")
     assert Settings.load(path=cfg).port == 7000
+
+
+def test_rerank_top_k_default():
+    assert Settings.load(path=None).rerank_top_k == 10

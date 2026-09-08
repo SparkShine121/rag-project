@@ -86,3 +86,15 @@ def test_core_lazy_and_cached(tmp_path: Path):
     # 真实 BGEM3 懒加载不触发下载（未访问 .model）
     assert core.hub.embedder.dim == 1024
     assert isinstance(core.retriever, Retriever)
+
+
+def test_retriever_rerank_budget(tmp_path: Path):
+    """rerank_top_k：仅对稠密分前 N 名做交叉编码精排（M4 实测 100ms/对）。"""
+    hits = [_hit(f"h{i}", f"内容{i}") for i in range(1, 21)]  # 20 个召回
+    store = RecordingStore(hits)
+    rr = ScoredReranker()
+    retriever = Retriever(FakeEmbedder(dim=DIM), rr, store, token_counter=len,
+                          recall_k=20, top_k=3, rerank_top_k=10)
+    results = retriever.search("查询")
+    assert len(rr.calls[0][1]) == 10  # 只送 10 个候选进重排
+    assert len(results) == 3
