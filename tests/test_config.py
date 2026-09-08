@@ -40,4 +40,5 @@ def test_env_overrides_toml(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 
 
 def test_rerank_top_k_default():
-    assert Settings.load(path=None).rerank_top_k == 10
+    """冒烟实测：5 → 0.7-1.2s 达标且质量零损失（10 → 2.4s）。"""
+    assert Settings.load(path=None).rerank_top_k == 5

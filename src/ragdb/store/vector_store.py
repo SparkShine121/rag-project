@@ -38,6 +38,7 @@ class VectorStore:
     TABLE = "chunks"
 
     def __init__(self, db_dir: Path, dim: int = 1024):
+        self.dim = dim
         self._db = lancedb.connect(db_dir)
         if self.TABLE in self._db.table_names():
             self._table = self._db.open_table(self.TABLE)

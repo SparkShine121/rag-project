@@ -25,7 +25,9 @@ class Core:
     def store(self):
         from ragdb.store.vector_store import VectorStore
 
-        return VectorStore(self.settings.data_dir / "lancedb")
+        # dim 由嵌入模型声明推导，杜绝换模型后魔法数字静默建错表
+        return VectorStore(self.settings.data_dir / "lancedb",
+                           dim=self.embedder.dim)
 
     @cached_property
     def state(self):
