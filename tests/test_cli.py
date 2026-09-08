@@ -1,5 +1,6 @@
 """CLI 路由、锁协调与端到端集成测试（零模型）。"""
 
+import json
 from pathlib import Path
 
 import httpx
@@ -133,3 +134,19 @@ def test_end_to_end(tmp_path):
     assert core.engine.run().moved == 1
     assert core.store.count() == before  # 移动无增减
     assert not core.store.fetch_by_source("笔记3.md")  # 无孤儿
+
+
+def test_sync_local_path_prints_json(monkeypatch, tmp_path, capsys):
+    """冒烟发现：CLI 本地写路径把 SyncReport 数据类直接 json.dumps 会炸。"""
+    from ragdb.sync.engine import SyncReport
+
+    class RealReportEngine:
+        def run(self, full=False):
+            return SyncReport(added=3)
+
+    core = _stub_core(tmp_path, engine=RealReportEngine())
+    monkeypatch.setattr(cli.httpx, "get",
+                        lambda *a, **kw: (_ for _ in ()).throw(httpx.ConnectError("down")))
+    assert cli._coordinated_sync(core, full=False) == 0
+    out = capsys.readouterr().out
+    assert json.loads(out)["added"] == 3

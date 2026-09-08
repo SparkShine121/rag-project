@@ -6,6 +6,7 @@ import argparse
 import fcntl
 import json
 import sys
+from dataclasses import asdict, is_dataclass
 
 import httpx
 
@@ -17,7 +18,9 @@ def _build_core(config_path=None) -> Core:
     return Core.from_settings(Settings.load(config_path))
 
 
-def _print_report(report: dict) -> None:
+def _print_report(report) -> None:
+    if is_dataclass(report):
+        report = asdict(report)
     print(json.dumps(report, ensure_ascii=False, indent=2))
 
 
