@@ -21,6 +21,10 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.6"]
 
+[project.scripts]
+ragdb = "ragdb.cli:main"
+ragdb-mcp = "ragdb.mcp_server:main"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
