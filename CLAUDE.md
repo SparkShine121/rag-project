@@ -8,6 +8,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 常用命令
 
+（与 README「快速开始」为同一事实的两面：改其一必须同步另一处）
+
 ```bash
 uv sync --extra dev                  # 装依赖（Python 3.12 由 uv 管理）
 uv run pytest                        # 全量快速测试（约 8s，零模型零网络）
