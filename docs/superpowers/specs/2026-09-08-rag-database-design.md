@@ -88,6 +88,7 @@ class RawDocument:
 @dataclass
 class Chunk:
     source_id: str
+    title: str                  # 笔记标题（stem 或首个 H1），LanceDB title 列来源
     chunk_index: int            # 0 起
     heading_path: str           # "RAG > 数据管线 > 分块"；无标题时为 title
     content: str
@@ -98,7 +99,7 @@ class Chunk:
 
 - 接口：
   - `class SourceConnector(ABC)`：`fetch_all() -> Iterable[RawDocument]`、`fetch_changes(known: dict[str, FileStamp]) -> ChangeSet`
-  - `FileStamp = tuple[float, int]`（mtime, size）；`ChangeSet` 字段：`added: list[RawDocument]`、`modified: list[RawDocument]`、`moved: list[tuple[str, RawDocument]]`（旧 source_id → 新文档；判定=hash 相同而路径不同）、`deleted: list[str]`（旧 source_id）、`unchanged: int`
+  - `FileStamp = tuple[float, int, str]`（mtime, size, content_hash——移动识别需比对 hash，故入戳）；`ChangeSet` 字段：`added: list[RawDocument]`、`modified: list[RawDocument]`、`moved: list[tuple[str, RawDocument]]`（旧 source_id → 新文档；判定=hash 相同而路径不同）、`deleted: list[str]`（旧 source_id）、`unchanged: int`
   - `class ObsidianConnector(SourceConnector)`：遍历 vault，跳过 `.obsidian/`、`.trash/`、`.` 开头文件与目录、非 `.md` 文件；vault 路径含空格与中文，一律 pathlib。
   - `parse_note(raw) -> ParsedNote`：frontmatter（python-frontmatter）、wikilink 列表（正则 `\[\[([^\]|#]+)`，存入 metadata 供 v2 图谱）、标题树。
   - `class Chunker`：`split(note: ParsedNote) -> list[Chunk]`——按 H2/H3 切；<100 字并入上级；>500 token 按段落二级切；`heading_path` 用 `note.title > H2 > H3` 拼接。
