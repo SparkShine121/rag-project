@@ -646,15 +646,17 @@ npm test path/to/test.test.ts
 | TOOL 提案 | 每次任务有产出中间文件时评估 |
 | 每日复盘 | 每天一次 |
 
-**数据文件（全局级别）**——所有运行时数据存放在智能体全局配置目录下的 `agent-evolution/` 子目录（Claude Code 即 `~/.claude/agent-evolution/`；其他平台为其全局配置目录）：
+**数据文件**——错题集与旁观者观察日志**按项目**存放于项目根 `errors_file/` 子目录（不存在则在首次写入时自动新建）；其余运行时数据仍在智能体全局配置目录的 `agent-evolution/` 子目录（Claude Code 即 `~/.claude/agent-evolution/`；其他平台为其全局配置目录）：
 
 ```text
+<项目根>/errors_file/
+├── errors.md          错题集（上限 50 条，项目级——错题天然与项目绑定）
+└── observations/      旁观者审查观察日志（JSON，项目级）
+
 <全局配置目录>/agent-evolution/
-├── MEMORY.md          用户偏好与语言习惯
-├── errors.md          错题集（上限 50 条）
-├── candidate-sops.md  候选 SOP 计数表
-├── tool-registry.md   tool/plugin 注册表
-├── observations/      旁观者审查观察日志（JSON）
+├── MEMORY.md          用户偏好与语言习惯（跨项目共享）
+├── candidate-sops.md  候选 SOP 计数表（跨项目）
+├── tool-registry.md   tool/plugin 注册表（跨项目）
 └── backups/           修改前的备份（用于回滚）
 ```
 
@@ -691,7 +693,7 @@ MEMORY.md 结构：
 
 ### 6.2 错题集（Error Log）
 
-维护错题集：记录、分类、去重、归档、任务前读取。数据文件：`<全局配置目录>/agent-evolution/errors.md`。
+维护错题集：记录、分类、去重、归档、任务前读取。数据文件：`<项目根>/errors_file/errors.md`（不存在则自动新建）。
 
 **分类**（可随使用调整）：① 工具传参错误；② 工具调用错误（选错工具、调用顺序错误等）；③ 流程/编排错误；④ 其他。
 
@@ -733,7 +735,7 @@ MEMORY.md 结构：
 }
 ```
 
-观察结果存入 `<全局配置目录>/agent-evolution/observations/`。
+观察结果存入 `<项目根>/errors_file/observations/`。
 
 **每日复盘（每天一次）**：对当天积累的观察日志汇总，提炼更高层模式，并：把可复用的正确做法沉淀为候选 SOP（更新 candidate-sops.md）；把重复错误合并到错题集；把值得固化的偏好提交给 MEMORY。
 

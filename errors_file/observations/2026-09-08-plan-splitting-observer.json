@@ -1,0 +1,22 @@
+{
+  "task": "旁观者审查：RAG 项目计划拆分回合（errors.md 记录、spec 就地修订、14 任务 TDD 实现计划编写与提交）",
+  "date": "2026-09-08",
+  "source": "observer-subagent",
+  "findings": [
+    {
+      "错误描述": "3 个 .DS_Store 被 git add -A 一并提交入库（.DS_Store、.claude/.DS_Store、.claude/skills/.DS_Store），且当时仓库无 .gitignore",
+      "错误细节": "提交前未审查暂存区；.DS_Store 属应被识别的中间产物，违背用户磁盘敏感偏好与全局中间文件汇报规则",
+      "建议解决方案": "git rm --cached + 补 .gitignore（**/.DS_Store）；后续 git add 用具体文件名或提交前逐项确认暂存区（已于同日执行修复）"
+    },
+    {
+      "错误描述": "spec 修订与实现计划混在同一 commit（流程可优化，非错误）",
+      "错误细节": "设计变更（spec 修订）与下游产物（计划）未分离提交，失去单独 revert 能力；commit message 用分号连接两件事是拆分信号",
+      "建议解决方案": "形成习惯：spec 变更与基于它的产物分两个 commit"
+    },
+    {
+      "错误描述": "（确认项，无问题）errors.md 追加遵循现场扁平条目格式，先读后写",
+      "错误细节": "-",
+      "建议解决方案": "无需处理"
+    }
+  ]
+}
