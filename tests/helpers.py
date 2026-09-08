@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
+
+import numpy as np
 
 from ragdb.ingest.connector import ObsidianConnector
 
@@ -47,3 +50,51 @@ def stamps(vault: Path) -> dict[str, tuple[float, int, str]]:
         st = (vault / doc.source_id).stat()
         out[doc.source_id] = (st.st_mtime, st.st_size, doc.content_hash)
     return out
+
+
+class FakeEmbedder:
+    """确定性哈希嵌入：同文同向量、异文异向量、已 L2 归一化。"""
+
+    def __init__(self, dim: int = 8, seed: int = 0):
+        self.dim = dim
+        self._seed = seed
+
+    def _vec(self, text: str) -> np.ndarray:
+        digest = hashlib.blake2b(
+            f"{self._seed}:{text}".encode(), digest_size=64
+        ).digest()
+        raw = np.frombuffer(digest, dtype=np.uint8).astype("float32")
+        v = np.tile(raw, self.dim // len(raw) + 1)[: self.dim]
+        return v / np.linalg.norm(v)
+
+    def embed(self, texts: list[str]) -> np.ndarray:
+        return np.stack([self._vec(t) for t in texts])
+
+    def embed_query(self, query: str) -> np.ndarray:
+        return self._vec(query)
+
+
+class FakeReranker:
+    """字符重叠打分：query 与 doc 的字符集合 Jaccard。"""
+
+    def rerank(self, query: str, docs: list[str]) -> list[float]:
+        q = set(query)
+        return [
+            len(q & set(d)) / max(len(q | set(d)), 1) for d in docs
+        ]
+
+
+class CountingEmbedder:
+    """包装 Embedder 并统计 embed() 调用次数（验证移动不重嵌入）。"""
+
+    def __init__(self, inner):
+        self.inner = inner
+        self.dim = inner.dim
+        self.calls = 0
+
+    def embed(self, texts: list[str]) -> np.ndarray:
+        self.calls += 1
+        return self.inner.embed(texts)
+
+    def embed_query(self, query: str) -> np.ndarray:
+        return self.inner.embed_query(query)
