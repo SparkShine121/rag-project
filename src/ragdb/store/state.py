@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS meta (
 class SyncState:
     def __init__(self, db_path: Path):
         self._db_path = db_path
+        self._db_path.parent.mkdir(parents=True, exist_ok=True)
         with self._conn() as conn:
             conn.executescript(_SCHEMA)
 

@@ -130,3 +130,20 @@ class VectorStore:
 
     def count(self) -> int:
         return self._table.count_rows()
+
+    def list_notes(
+        self, *, folder: str | None = None, tag: str | None = None,
+    ) -> list[dict]:
+        """按笔记去重的清单（首块携带 title/tags），source_id 升序。"""
+        rows = self._table.to_arrow().to_pylist()
+        notes: dict[str, dict] = {}
+        for r in rows:
+            sid = r["source_id"]
+            if folder is not None and not sid.startswith(folder):
+                continue
+            if tag is not None and tag not in r["tags"]:
+                continue
+            if sid not in notes:
+                notes[sid] = {"source_id": sid, "title": r["title"],
+                              "tags": list(r["tags"])}
+        return [notes[k] for k in sorted(notes)]

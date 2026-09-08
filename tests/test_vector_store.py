@@ -87,3 +87,18 @@ def test_search_filters(store: VectorStore):
 def test_search_empty_store(store: VectorStore):
     assert store.search(_unit(DIM, 0), k=5) == []
     assert store.count() == 0
+
+
+def test_list_notes_dedup_and_filters(store: VectorStore):
+    store.upsert([_chunk("目录/甲.md", 0, tags=["RAG"]),
+                  _chunk("目录/甲.md", 1, tags=["RAG"]),
+                  _chunk("根.md", 0, tags=["其它"])],
+                 np.stack([_unit(DIM, 0)] * 3))
+    all_notes = store.list_notes()
+    assert {n["source_id"] for n in all_notes} == {"目录/甲.md", "根.md"}
+    assert [n["source_id"] for n in all_notes] == sorted(
+        {"目录/甲.md", "根.md"}
+    )  # 升序稳定（注意 Unicode 序：根 < 目）
+    assert store.list_notes(folder="目录/")[0]["source_id"] == "目录/甲.md"
+    assert store.list_notes(tag="其它")[0]["source_id"] == "根.md"
+    assert store.list_notes(tag="不存在") == []
