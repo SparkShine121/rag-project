@@ -58,3 +58,12 @@ def test_title_ignores_frontmatter_heading(tmp_path: Path):
     )
     docs = {d.source_id: d for d in ObsidianConnector(vault).fetch_all()}
     assert docs["fm_title.md"].title == "真标题"
+
+
+def test_bad_encoding_flagged_not_crash(tmp_path: Path):
+    vault = make_vault(tmp_path)
+    (vault / "bad.md").write_bytes(b"\xff\xfe\xff not utf8 \x00")
+    docs = {d.source_id: d for d in ObsidianConnector(vault).fetch_all()}
+    assert docs["bad.md"].metadata["read_error"] is True
+    assert docs["笔记1.md"].metadata["read_error"] is False
+    assert docs["笔记1.md"].metadata["size"] > 0  # 字节语义

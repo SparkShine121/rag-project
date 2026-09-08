@@ -41,7 +41,13 @@ class ObsidianConnector(SourceConnector):
 
     def _read(self, p: Path) -> RawDocument:
         rel = p.relative_to(self._vault).as_posix()
-        text = p.read_text(encoding="utf-8")
+        st = p.stat()
+        try:
+            text = p.read_text(encoding="utf-8")
+            read_error = False
+        except UnicodeDecodeError:
+            text = p.read_bytes().decode("utf-8", errors="replace")
+            read_error = True
         body = frontmatter.loads(text).content  # 标题提取须跳过 frontmatter
         title = p.stem
         for line in body.splitlines():
@@ -53,7 +59,9 @@ class ObsidianConnector(SourceConnector):
             source_id=rel,
             title=title,
             content=text,
-            metadata={"mtime": p.stat().st_mtime},
+            metadata={
+                "mtime": st.st_mtime, "size": st.st_size, "read_error": read_error
+            },
         )
 
     def fetch_all(self) -> list[RawDocument]:
