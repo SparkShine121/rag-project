@@ -62,11 +62,13 @@ class Chunker:
             )
 
         def consume_pending(heading_path: str, tail: str | None = None) -> None:
-            """把积压的前置短节（可选拼接尾段）落成一个块。"""
-            if not pending_short:
-                return
-            parts = [*pending_short, tail] if tail else [*pending_short]
+            """积压前置短节（可选拼接尾段）落成一个块；无积压且无尾段时不动。"""
+            parts = [*pending_short]
             pending_short.clear()
+            if tail is not None:
+                parts.append(tail)
+            if not parts:
+                return
             chunks.append(new_chunk("\n\n".join(parts), heading_path))
 
         def split_long(content: str) -> list[str]:

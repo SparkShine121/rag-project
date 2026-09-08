@@ -54,7 +54,7 @@ def test_same_hash_still_unchanged(tmp_path: Path):
 def test_title_ignores_frontmatter_heading(tmp_path: Path):
     vault = make_vault(tmp_path)
     (vault / "fm_title.md").write_text(
-        "---\ntags: [X]\n---\n# 这不是标题是注释\n# 真标题\n正文", encoding="utf-8"
+        "---\n# YAML注释行不是标题\ntags: [X]\n---\n# 真标题\n正文", encoding="utf-8"
     )
     docs = {d.source_id: d for d in ObsidianConnector(vault).fetch_all()}
     assert docs["fm_title.md"].title == "真标题"
