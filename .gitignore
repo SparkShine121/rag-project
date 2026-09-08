@@ -1,0 +1,18 @@
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# dev-workflow 工作区
+.superpowers/
+
+# 本地数据
+*.lance/
+ragdb.lock
