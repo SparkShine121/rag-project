@@ -37,6 +37,10 @@ class Chunker:
         self._min_chars = min_chars
         self._max_tokens = max_tokens
 
+    def count(self, text: str) -> int:
+        """公开 token 计数（Core 把它传给 Retriever 做预算控制）。"""
+        return self._count(text)
+
     def _count(self, text: str) -> int:
         if self._counter is None:
             self._counter = _default_counter()
