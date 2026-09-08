@@ -212,7 +212,7 @@ class Chunk:
 | Hermes Agent（Nous，本机） | stdio MCP | `~/.hermes/config.yaml` `mcp_servers.ragdb` 同上配置；或 `hermes import-agent claude-code` 直接迁移 | 官方文档已核实（2026-09-08） |
 | Hermes Agent CN Desktop | stdio MCP | 同上（同一套 config） | 同上 |
 | Hermes Agent（VPS/远程） | HTTP MCP | 指向 `http://<mac>:8770/mcp`，需 v2 公网暴露+鉴权后可用 | 官方文档已核实支持 remote HTTP MCP |
-| OpenClaw | stdio MCP 或 REST | 本机自托管；MCP 配置细节待核实，REST 兜底（`POST /api/v1/search`）确定可用 | 官方源未能访问，待核实 |
+| OpenClaw | stdio / HTTP MCP / REST | `openclaw mcp add ragdb --command uv --arg run --arg ragdb-mcp`（stdio）；或 `openclaw mcp add ragdb --url http://127.0.0.1:8770/mcp --transport streamable-http`；Control UI/CLI/config 三处均可添加 | 官方文档已核实（2026-09-08） |
 | 任意 HTTP agent | REST | OpenAPI 规范，函数调用直接映射 | v1 原生 |
 
 ## 11. 风险与对策
