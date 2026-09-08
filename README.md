@@ -21,6 +21,7 @@ uv run ragdb serve                  # 常驻服务（REST :8770 + /mcp + 30s 后
 
 ## 文档
 
+- **智能体接入与操作指南（给其它 agent 用）**：[docs/智能体接入指南.md](docs/智能体接入指南.md)
 - 设计规格：[docs/superpowers/specs/2026-09-08-rag-database-design.md](docs/superpowers/specs/2026-09-08-rag-database-design.md)
 - 配置说明：[ragdb.toml](ragdb.toml)（全参数带备注）
 - 环境事实：[项目配置清单.md](项目配置清单.md)
