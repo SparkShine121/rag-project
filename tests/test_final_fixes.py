@@ -163,3 +163,23 @@ def test_mcp_search_empty_query_message():
         retriever = StubRetriever()
 
     assert "查询词" in _tool_search(StubCore(), "   ")
+
+
+def test_folder_boundary_excludes_sibling_dirs(tmp_path: Path):
+    """局部重审 I6 残留：folder="my_notes" 不得命中 my_notes2/。"""
+    import numpy as np
+
+    from ragdb.ingest.schema import Chunk
+    from ragdb.store.vector_store import VectorStore
+
+    store = VectorStore(tmp_path / "db", dim=8)
+    v = np.zeros((1, 8), dtype="float32")
+    v[0][0] = 1.0
+    store.upsert([Chunk("my_notes/a.md", "a", 0, "h", "内容", 2)], np.tile(v, (1, 1)))
+    store.upsert([Chunk("my_notes2/b.md", "b", 0, "h", "内容", 2)], np.tile(v, (1, 1)))
+    store.upsert([Chunk("my_notes.md", "c", 0, "h", "内容", 2)], np.tile(v, (1, 1)))
+
+    hits = store.search(v[0], k=10, folder="my_notes")   # 无尾斜杠
+    assert sorted(h.source_id for h in hits) == ["my_notes.md", "my_notes/a.md"]
+    hits2 = store.search(v[0], k=10, folder="my_notes/")
+    assert sorted(h.source_id for h in hits2) == ["my_notes/a.md"]

@@ -115,9 +115,15 @@ class VectorStore:
         if source_type is not None:
             conds.append(f"source_type = '{_esc(source_type)}'")
         if folder is not None:
-            conds.append(
-                f"source_id LIKE '{_esc(_esc_like(folder))}%' ESCAPE '\\'"
-            )
+            # 目录边界语义：my_notes → 其子路径 + 同名 .md；my_notes/ → 仅子路径；
+            # 均不命中兄弟目录（my_notes2/）
+            base = folder.rstrip("/")
+            esc_base = _esc(_esc_like(base))
+            sub = f"source_id LIKE '{esc_base}/%' ESCAPE '\\'"
+            if folder.endswith("/"):
+                conds.append(sub)
+            else:
+                conds.append(f"({sub} OR source_id = '{_esc(base)}.md')")
         builder = self._table.search(q).limit(k)
         if conds:
             builder = builder.where(" AND ".join(conds), prefilter=True)
