@@ -15,6 +15,10 @@ class Core:
 
     @classmethod
     def from_settings(cls, settings: Settings) -> Core:
+        if not settings.vault_path.exists():  # spec §7：配置校验不过不启动
+            raise FileNotFoundError(
+                f"知识库路径不存在: {settings.vault_path}（检查 ragdb.toml 的 vault_path）"
+            )
         return cls(settings=settings)
 
     @cached_property

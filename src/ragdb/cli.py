@@ -13,8 +13,8 @@ from ragdb.config import Settings
 from ragdb.core import Core
 
 
-def _build_core() -> Core:
-    return Core.from_settings(Settings.load())
+def _build_core(config_path=None) -> Core:
+    return Core.from_settings(Settings.load(config_path))
 
 
 def _print_report(report: dict) -> None:
@@ -59,8 +59,8 @@ def _cmd_rebuild(core: Core) -> int:
     return _coordinated_sync(core, full=True)
 
 
-def _cmd_search(core: Core, query: str) -> int:
-    results = core.retriever.search(query)
+def _cmd_search(core: Core, query: str, top_k: int | None = None) -> int:
+    results = core.retriever.search(query, top_k=top_k)
     if not results:
         print("未找到相关内容。")
         return 0
@@ -89,16 +89,20 @@ def _cmd_status(core: Core) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="ragdb", description="个人 RAG 数据库")
+    parser.add_argument("--config", type=str, default=None,
+                        help="ragdb.toml 路径（默认：./ragdb.toml 或内置默认值）")
     sub = parser.add_subparsers(dest="cmd", required=True)
     sub.add_parser("serve", help="常驻服务（FastAPI + 后台同步循环）")
     sub.add_parser("sync", help="增量同步")
     sub.add_parser("rebuild", help="全量重建")
     p_search = sub.add_parser("search", help="命令行检索")
     p_search.add_argument("query")
+    p_search.add_argument("--top-k", type=int, default=None, dest="top_k",
+                          help="返回条数上限（默认取配置 top_k）")
     sub.add_parser("status", help="运行状态")
 
     args = parser.parse_args(argv)
-    core = _build_core()
+    core = _build_core(args.config)
     if args.cmd == "serve":
         return _cmd_serve(core)
     if args.cmd == "sync":
@@ -106,7 +110,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "rebuild":
         return _cmd_rebuild(core)
     if args.cmd == "search":
-        return _cmd_search(core, args.query)
+        return _cmd_search(core, args.query, top_k=args.top_k)
     if args.cmd == "status":
         return _cmd_status(core)
     return 1

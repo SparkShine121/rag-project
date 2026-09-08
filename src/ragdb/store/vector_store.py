@@ -17,6 +17,11 @@ def _esc(s: str) -> str:
     return s.replace("'", "''")
 
 
+def _esc_like(s: str) -> str:
+    """LIKE 模式转义：% _ \\ 需按字面匹配（终审 I6）。"""
+    return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 @dataclass
 class Hit:
     source_id: str
@@ -110,7 +115,9 @@ class VectorStore:
         if source_type is not None:
             conds.append(f"source_type = '{_esc(source_type)}'")
         if folder is not None:
-            conds.append(f"source_id LIKE '{_esc(folder)}%'")
+            conds.append(
+                f"source_id LIKE '{_esc(_esc_like(folder))}%' ESCAPE '\\'"
+            )
         builder = self._table.search(q).limit(k)
         if conds:
             builder = builder.where(" AND ".join(conds), prefilter=True)

@@ -37,6 +37,7 @@ class FakeEngine:
 
 @pytest.fixture()
 def client(tmp_path: Path):
+    (tmp_path / "vault").mkdir(exist_ok=True)
     settings = Settings.load(path=None).model_copy(
         update={"data_dir": tmp_path / "data", "vault_path": tmp_path / "vault",
                 "interval_secs": 0}  # 测试不起后台同步循环
@@ -107,4 +108,6 @@ def test_health_endpoint(client):
 def test_mcp_route_mounted(client):
     tc, *_ = client
     app = tc.app
-    assert any(getattr(r, "path", "") == "/mcp" for r in app.routes)
+    # "/" 兜底挂载承载 MCP（/api 路由优先命中）；真实握手见 test_final_fixes
+    mounts = [r for r in app.routes if type(r).__name__ == "Mount"]
+    assert any(m.path in ("", "/") for m in mounts)  # Starlette 把 "/" 规范化为 ""

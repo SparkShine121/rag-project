@@ -1,18 +1,22 @@
-"""HTTP 薄壳：REST 五端点 + /mcp 挂载 + 后台同步循环。业务逻辑全在 Core。"""
+"""HTTP 薄壳：REST 五端点 + /mcp + serve 写锁 + 后台同步循环。业务逻辑全在 Core。"""
 
 from __future__ import annotations
 
 import asyncio
 import contextlib
+import fcntl
 import logging
+from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import asdict
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from ragdb.mcp_server import build_mcp
+
+logger = logging.getLogger("ragdb.api")
 
 
 class SearchRequest(BaseModel):
@@ -20,6 +24,13 @@ class SearchRequest(BaseModel):
     top_k: int | None = Field(default=None, ge=1, le=50)
     folder: str | None = None
     tags: list[str] | None = None
+
+    @field_validator("query")
+    @classmethod
+    def _query_not_blank(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("查询词不能为空")
+        return v
 
 
 class SyncRequest(BaseModel):
@@ -45,8 +56,50 @@ def _health_payload(core) -> dict:
 
 
 def create_app(core) -> FastAPI:
-    app = FastAPI(title="ragdb", version="0.1.0")
-    app.mount("/mcp", build_mcp(core).streamable_http_app())
+    mcp_app = build_mcp(core).streamable_http_app()
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        # serve 进程持写锁：单写者由锁保证，CLI 撞锁即明确拒绝
+        core.settings.data_dir.mkdir(parents=True, exist_ok=True)
+        # 锁需横跨整个 lifespan 持有，不能用 with 上下文管理器
+        lock_file = open(core.settings.data_dir / "ragdb.lock", "w")  # noqa: SIM115, ASYNC230
+        try:
+            fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            lock_file.close()
+            raise RuntimeError(
+                "ragdb.lock 已被占用：另一个 serve/CLI 写进程正在运行"
+            ) from None
+        async with AsyncExitStack() as stack:
+            # Mount 不传播子应用 lifespan：手动启动 MCP session manager
+            await stack.enter_async_context(
+                mcp_app.router.lifespan_context(mcp_app)
+            )
+            task = None
+            if core.settings.interval_secs > 0:
+
+                async def loop():
+                    while True:
+                        try:
+                            # 线程池执行：长同步不阻塞事件循环（health 保持响应）
+                            await asyncio.to_thread(core.engine.run)
+                        except Exception:  # 循环不退出
+                            logger.exception("后台同步失败")
+                        await asyncio.sleep(core.settings.interval_secs)
+
+                task = asyncio.create_task(loop())
+            try:
+                yield
+            finally:
+                if task:
+                    task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await task
+                fcntl.flock(lock_file, fcntl.LOCK_UN)
+                lock_file.close()
+
+    app = FastAPI(title="ragdb", version="0.1.0", lifespan=lifespan)
 
     @app.exception_handler(HTTPException)
     async def http_error(request: Request, exc: HTTPException):
@@ -88,29 +141,8 @@ def create_app(core) -> FastAPI:
     async def health():
         return _health_payload(core)
 
-    @app.on_event("startup")
-    async def start_sync_loop():
-        if core.settings.interval_secs <= 0:
-            return
-
-        async def loop():
-            while True:
-                try:
-                    core.engine.run()
-                except Exception:  # 循环不退出，故障进日志
-                    logging.getLogger("ragdb.api").exception("后台同步失败")
-                await asyncio.sleep(core.settings.interval_secs)
-
-        app.state.sync_task = asyncio.create_task(loop())
-
-    @app.on_event("shutdown")
-    async def stop_sync_loop():
-        task = getattr(app.state, "sync_task", None)
-        if task:
-            task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await task
-
+    # 挂载顺序：先注册的 /api 路由优先命中，"/" 兜底交给 MCP（其内部路由为 /mcp）
+    app.mount("/", mcp_app)
     return app
 
 

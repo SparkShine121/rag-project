@@ -41,14 +41,17 @@ class Settings(BaseSettings):
 
     @classmethod
     def load(cls, path: Path | None = None) -> Settings:
+        if path is None:  # 默认发现：当前工作目录的 ragdb.toml（终审 I8）
+            cwd_cfg = Path("ragdb.toml")
+            path = cwd_cfg if cwd_cfg.exists() else None
         data: dict = {}
         if path is not None:
-            data = tomllib.loads(path.read_text(encoding="utf-8"))
+            data = tomllib.loads(Path(path).read_text(encoding="utf-8"))
             if "chunk" in data and isinstance(data["chunk"], dict):
                 data["chunk"] = ChunkConfig(**data["chunk"])
-        # 环境变量优先级高于 toml：env 接管的字段不传 init kwargs
-        #（BaseSettings 的 init 优先级最高，会让 toml 反压 env）
+        # 环境变量优先级高于 toml：仅识别 RAGDB_ 前缀（裸名如 PORT/DEVICE
+        # 与 ragdb 无关，不得劫持 toml 值——终审 I2）
         for key in list(data):
-            if key.upper() in os.environ or f"RAGDB_{key.upper()}" in os.environ:
+            if f"RAGDB_{key.upper()}" in os.environ:
                 data.pop(key)
         return cls(**data)

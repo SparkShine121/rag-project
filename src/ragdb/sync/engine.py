@@ -51,10 +51,14 @@ class SyncEngine:
             if doc.metadata.get("read_error"):
                 raise ValueError("文件不是有效 UTF-8 文本")
             chunks = self._chunker.split(parse_note(doc))
-            vecs = (
-                self._embedder.embed([c.content for c in chunks])
-                if chunks else _empty_vecs(self._embedder, 0)
-            )
+            if not chunks:  # 清空正文 → 旧向量必须清除（终审 I1）
+                self._store.delete_by_source(doc.source_id)
+                self._state.upsert(
+                    doc.source_id, doc.metadata["mtime"], doc.metadata["size"],
+                    doc.content_hash, 0,
+                )
+                return 0
+            vecs = self._embedder.embed([c.content for c in chunks])
             self._store.upsert(chunks, vecs)
             self._state.upsert(
                 doc.source_id, doc.metadata["mtime"], doc.metadata["size"],

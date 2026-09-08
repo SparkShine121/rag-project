@@ -36,7 +36,8 @@ def test_search_command_prints(monkeypatch, capsys):
                                  snippets=["片段"], whole_note=True,
                                  score_rerank=0.9, tags=[])]
 
-    monkeypatch.setattr(cli, "_build_core", lambda: _stub_core(retriever=StubRetriever()))
+    monkeypatch.setattr(cli, "_build_core",
+                        lambda *a, **kw: _stub_core(retriever=StubRetriever()))
     assert cli.main(["search", "测试词"]) == 0
     assert "a.md" in capsys.readouterr().out
 
