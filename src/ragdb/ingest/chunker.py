@@ -59,6 +59,7 @@ class Chunker:
                 token_count=self._count(content),
                 tags=list(note.tags),
                 external_url=note.doc.metadata.get("external_url"),
+                content_hash=note.doc.content_hash,
             )
 
         def consume_pending(heading_path: str, tail: str | None = None) -> None:

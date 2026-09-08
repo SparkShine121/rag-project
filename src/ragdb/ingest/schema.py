@@ -60,3 +60,4 @@ class Chunk:
     token_count: int
     tags: list[str] = field(default_factory=list)
     external_url: str | None = None
+    content_hash: str = ""  # 所属文档内容 hash，入 LanceDB content_hash 列
