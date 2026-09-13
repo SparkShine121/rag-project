@@ -185,3 +185,46 @@ def test_empty_md_does_not_block_source():
     conn = GitHubConnector(_cfg(), client=_client(routes, []))
     docs = conn.fetch_all()
     assert len(docs) == 1 and docs[0].content == ""  # 空文档 → 引擎按 0 块处理
+
+
+# ---------- v1.2 白名单扩展 ----------
+
+def test_whitelist_exts_and_pdf_binary():
+    from ragdb.config import IngestConfig
+
+    tree = {"tree": [
+        {"path": "a.md", "type": "blob", "sha": "shaM", "size": 5},
+        {"path": "b.pdf", "type": "blob", "sha": "shaP", "size": 9},
+        {"path": "c.py", "type": "blob", "sha": "shaC", "size": 5},
+    ], "truncated": False}
+    routes = {("GET", "/git/trees/main"): (200, tree),
+              ("GET", "/contents/a.md"): (200, {"content": base64.b64encode("文档".encode()).decode(),
+                                                "encoding": "base64", "html_url": ""}),
+              ("GET", "/contents/b.pdf"): (200, {"content": base64.b64encode(b"%PDF fake").decode(),
+                                                 "encoding": "base64", "html_url": ""})}
+    conn = GitHubConnector(_cfg(), client=_client(routes, []),
+                           ingest_cfg=IngestConfig(include_exts=[".md", ".pdf"]))
+    docs = conn.fetch_all()
+    assert {d.source_id for d in docs} == {"a.md", "b.pdf"}  # c.py 被白名单排除
+    pdf = next(d for d in docs if d.source_id == "b.pdf")
+    assert pdf.binary == b"%PDF fake" and pdf.content == ""
+
+
+def test_oversized_github_file_skipped_with_hint():
+    from ragdb.config import IngestConfig
+
+    tree = {"tree": [
+        {"path": "big.pdf", "type": "blob", "sha": "shaB", "size": 60 * 1024 * 1024},
+        {"path": "small.md", "type": "blob", "sha": "shaS", "size": 3},
+    ], "truncated": False}
+    routes = {("GET", "/git/trees/main"): (200, tree),
+              ("GET", "/contents/small.md"): (200, {"content": base64.b64encode(b"ok").decode(),
+                                                    "encoding": "base64", "html_url": ""})}
+    calls: list = []
+    conn = GitHubConnector(_cfg(), client=_client(routes, calls),
+                           ingest_cfg=IngestConfig(include_exts=[".md", ".pdf"],
+                                                   max_file_mb=50))
+    cs = conn.fetch_changes({})
+    assert [d.source_id for d in cs.added] == ["small.md"]
+    assert any("超过大小上限" in r for _, r in cs.failed)
+    assert sum(1 for c in calls if "/contents/big.pdf" in c.url.path) == 0  # 超限不下载
