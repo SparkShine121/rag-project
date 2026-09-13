@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -c '\nimport json,sys\nd=json.load(sys.stdin)\ncmd=(d.get(\"tool_input\") or {}).get(\"command\",\"\") or \"\"\nif \"| head\" in cmd or \"|head\" in cmd:\n    print(\"pipefail 链内禁用 | head（SIGPIPE 141 误报，已三犯）——改用内建限量参数（git log -n、--max-count 等）\", file=sys.stderr)\n    sys.exit(2)\n'",
+            "timeout": 10,
+            "statusMessage": "检查 | head 使用…"
+          }
+        ]
+      }
+    ]
+  }
+}
