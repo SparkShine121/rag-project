@@ -54,7 +54,9 @@ class FolderConnector(SourceConnector):
             data = p.read_bytes()
             return RawDocument(
                 source_type="folder", source_id=rel, title=p.stem,
-                content="", metadata={"size": p.stat().st_size}, binary=data,
+                content="",
+                metadata={"mtime": p.stat().st_mtime, "size": p.stat().st_size},
+                binary=data,
             )
         return read_md(p, rel, "folder")
 

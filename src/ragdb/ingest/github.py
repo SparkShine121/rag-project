@@ -58,6 +58,7 @@ class GitHubConnector(SourceConnector):
         return resp.json()
 
     def _matching_blobs(self) -> list[dict]:
+        """按白名单/大小/数量上限过滤仓库 blob；被排除的记入 skipped。"""
         data = self._api_get(f"/repos/{self._cfg.repo}/git/trees/{self._cfg.ref}",
                              params={"recursive": "1"})
         if data.get("truncated"):
@@ -68,6 +69,8 @@ class GitHubConnector(SourceConnector):
         max_bytes = self._ingest.max_file_mb * 1024 * 1024
         blobs: list[dict] = []
         skipped: list[tuple[str, str]] = []
+        count = 0
+        limit = self._ingest.max_files_per_source
         for t in data["tree"]:
             if t.get("type") != "blob":
                 continue
@@ -78,6 +81,11 @@ class GitHubConnector(SourceConnector):
                 skipped.append((path,
                                 f"超过大小上限（{self._ingest.max_file_mb}MB）"))
                 continue
+            if count >= limit:
+                skipped.append((path,
+                                f"达到文件数上限（{limit}）——其余文件未索引"))
+                continue
+            count += 1
             blobs.append(t)
         self._skipped = skipped
         return blobs
@@ -86,32 +94,28 @@ class GitHubConnector(SourceConnector):
         return {t["path"]: (0.0, t.get("size", 0), t["sha"]) for t in blobs}
 
     def _fetch_doc(self, path: str) -> RawDocument:
-        data = self._api_get(f"/repos/{self._cfg.repo}/contents/{path}",
-                             params={"ref": self._cfg.ref})
+        """Git Blobs API 按 sha 拉内容（终审 I3：无 Contents API 的 1MB 上限）。"""
+        sha = self._sha_by_path.get(path)
+        if sha is None:
+            raise ValueError(f"内部错误：blob sha 缺失: {path}")
+        data = self._api_get(f"/repos/{self._cfg.repo}/git/blobs/{sha}")
         encoded = data.get("content", "")
-        # >1MB 文件 Contents API 返回 encoding:"none" 且 content 为空（终审 I4）；
-        # 0 字节文件同样返回空内容，但不属于过大（重审 N1）
-        if (data.get("encoding") != "base64" or not encoded) and data.get("size", 1) > 0:
-            raise ValueError(
-                f"文件过大或无法获取内容（Contents API 对 >1MB 文件返回空内容）: {path}"
-            )
+        if data.get("encoding", "base64") != "base64":
+            raise ValueError(f"无法解析 blob 内容: {path}")
         raw = base64.b64decode(encoded) if encoded else b""
-        sha = self._sha_by_path.get(path, data.get("sha", ""))
+        html_url = f"https://github.com/{self._cfg.repo}/blob/{self._cfg.ref}/{path}"
         if path.lower().endswith(".pdf"):
             # PDF 是二进制：内容放 binary，不进 content 字符串
             return RawDocument(
                 source_type="github", source_id=path, title=Path(path).stem,
-                content="", metadata={"blob_sha": sha,
-                                      "html_url": data.get("html_url", "")},
+                content="", metadata={"blob_sha": sha, "html_url": html_url},
                 hash_override=sha, binary=raw,
             )
         text = raw.decode("utf-8")
         return RawDocument(
-            source_type="github",
-            source_id=path,
-            title=extract_title(text, Path(path).stem),
-            content=text,
-            metadata={"blob_sha": sha, "html_url": data.get("html_url", "")},
+            source_type="github", source_id=path,
+            title=extract_title(text, Path(path).stem), content=text,
+            metadata={"blob_sha": sha, "html_url": html_url},
             hash_override=sha,
         )
 

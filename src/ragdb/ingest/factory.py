@@ -35,7 +35,8 @@ def build_connectors(settings: Settings) -> list[tuple[SourceConfig, SourceConne
                     f"GitHub 源 '{cfg.name}' 需要 token：环境变量 {cfg.token_env} 未设置"
                     f"（私有仓库必须提供；公开仓库可去掉 token_env 配置）"
                 )
-            items.append((cfg, GitHubConnector(cfg, token=token)))
+            items.append((cfg, GitHubConnector(cfg, token=token,
+                                 ingest_cfg=settings.effective_ingest(cfg))))
         else:  # pragma: no cover —— Literal 类型约束兜底
             raise ValueError(f"未知来源类型: {cfg.type}")
     return items

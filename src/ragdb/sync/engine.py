@@ -89,7 +89,10 @@ class SyncEngine:
             try:
                 if doc.metadata.get("read_error"):
                     raise ValueError("文件不是有效 UTF-8 文本")
-                chunks = self._chunker.split(parse_note(doc))
+                if self._pipeline is not None:
+                    chunks = self._pipeline.chunk(doc)
+                else:
+                    chunks = self._chunker.split(parse_note(doc))
                 old_hits = self._store.fetch_by_source(old_id)
                 if (len(old_hits) == len(chunks)
                         and all(h.vector is not None for h in old_hits)):

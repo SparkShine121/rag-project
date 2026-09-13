@@ -36,12 +36,12 @@ def _github_connector(tmp_path: Path):
         {"path": "papers/论文.pdf", "type": "blob", "sha": "shaX", "size": 12},
     ], "truncated": False}
     routes = {("GET", "/git/trees/main"): (200, tree),
-              ("GET", "/contents/README.md"): (200, {
+              ("GET", "/git/blobs/shaR"): (200, {
                   "content": __import__("base64").b64encode(b"repo readme").decode(),
-                  "encoding": "base64", "html_url": ""}),
-              ("GET", "/contents/papers/论文.pdf"): (200, {
+                  "encoding": "base64", "size": 11}),
+              ("GET", "/git/blobs/shaX"): (200, {
                   "content": __import__("base64").b64encode(make_pdf(["论文第一页"])).decode(),
-                  "encoding": "base64", "html_url": ""})}
+                  "encoding": "base64", "size": 12})}
     def handler(req: httpx.Request) -> httpx.Response:
         for (m, suffix), (status, payload) in routes.items():
             if req.method == m and req.url.path.endswith(suffix):
@@ -107,3 +107,20 @@ def test_incremental_across_sources(tmp_path: Path):
     p.write_text(p.read_text(encoding="utf-8") + "\n追加", encoding="utf-8")
     report = core.engine.run()
     assert report.updated == 1 and report.added == 0
+
+
+def test_renamed_pdf_keeps_chunks(tmp_path: Path):
+    """终审 C2：moved 分支必须走 pipeline——改名 PDF 不丢向量。"""
+    core = _core(tmp_path)
+    core.engine.run()
+    before = core.store.fetch_by_source("local/docs/报告.pdf")
+    assert len(before) == 2
+    # 找到 folder 源根目录：从 connector items 取
+    folder_root = next(conn._root for cfg, conn in core.connector._items
+                       if cfg.name == "local")
+    (folder_root / "docs" / "报告.pdf").rename(folder_root / "docs" / "报告v2.pdf")
+    report = core.engine.run()
+    assert report.moved == 1 and report.failed == []
+    after = core.store.fetch_by_source("local/docs/报告v2.pdf")
+    assert len(after) == 2  # 向量随移动保留（pipeline 分发正确）
+    assert not core.store.fetch_by_source("local/docs/报告.pdf")

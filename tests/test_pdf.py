@@ -74,6 +74,7 @@ def test_empty_pdf_zero_pages():
     assert _parser().split(_doc(make_pdf([]))) == []
 
 
+@pytest.mark.slow
 def test_real_ocr_apple_vision():
     """真实 Apple Vision OCR 冒烟：渲染大字文本 → OCR 识别关键数字。"""
     from ragdb.ingest.ocr import available, recognize_png
