@@ -46,3 +46,22 @@ device = "mps"
 dtype = "float16"
 # 嵌入批大小
 embed_batch = 32
+
+# ── 知识来源（v1.1 多渠道）─────────────────────────────
+# 每个 [[sources]] 块 = 一个知识源；name 即检索结果路径的前缀。
+# 未配置任何 sources 时，自动以 vault_path 作为名为 "obsidian" 的单一来源。
+# 来源增删/改名后的首次同步会自动清理孤儿索引，无需手动 rebuild。
+
+# 示例一：Obsidian vault（当前生效，type 可省略）
+[[sources]]
+name = "obsidian"
+type = "obsidian"
+path = "~/Documents/Obsidian Vault"
+
+# 示例二：GitHub 仓库（复制后改为你的仓库；一期仅索引 .md 文件）
+# [[sources]]
+# name = "myrepo"                # 检索路径前缀，如 myrepo/README.md
+# type = "github"
+# repo = "owner/repo"            # 公开或私有均可
+# ref = "main"                   # 分支 / tag / commit
+# token_env = "GITHUB_TOKEN"     # 私有仓库必填：从该环境变量读 token；公开仓库可删掉本行

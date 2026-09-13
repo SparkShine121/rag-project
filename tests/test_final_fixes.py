@@ -94,6 +94,7 @@ def test_toml_value_survives_unrelated_env(tmp_path: Path, monkeypatch):
 
 
 def test_settings_load_discovers_cwd_toml(tmp_path: Path, monkeypatch):
+    monkeypatch.delenv("RAGDB_NO_CWD_CONFIG", raising=False)  # 本用例显式测发现特性
     monkeypatch.chdir(tmp_path)
     (tmp_path / "ragdb.toml").write_text("top_k = 7\n", encoding="utf-8")
     assert Settings.load(path=None).top_k == 7

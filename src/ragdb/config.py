@@ -62,7 +62,9 @@ class Settings(BaseSettings):
 
     @classmethod
     def load(cls, path: Path | None = None) -> Settings:
-        if path is None:  # 默认发现：当前工作目录的 ragdb.toml（终审 I8）
+        if path is None and not os.environ.get("RAGDB_NO_CWD_CONFIG"):
+            # 默认发现：当前工作目录的 ragdb.toml（终审 I8）；
+            # 测试环境通过 RAGDB_NO_CWD_CONFIG 隔离（tests/conftest.py）
             cwd_cfg = Path("ragdb.toml")
             path = cwd_cfg if cwd_cfg.exists() else None
         data: dict = {}
