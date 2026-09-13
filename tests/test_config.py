@@ -97,3 +97,40 @@ def test_source_name_forbids_slash_and_blank(bad: str):
     """终审 C1：前缀碰撞会让文档每轮 deleted→added 抖动，name 必须是单段标识。"""
     with pytest.raises(Exception, match="name"):
         SourceConfig(name=bad, type="obsidian", path="/tmp/x")
+
+
+# ---------- v1.2 多类型过滤配置 ----------
+
+def test_ingest_defaults():
+    s = Settings.load(path=None)
+    assert s.ingest.max_file_mb == 50
+    assert s.ingest.max_files_per_source == 5000
+    for ext in (".md", ".pdf", ".py", ".ts", ".json"):
+        assert ext in s.ingest.include_exts
+    assert "node_modules" in s.ingest.exclude_dirs
+    assert ".git" in s.ingest.exclude_dirs
+
+
+def test_ingest_toml_parsing(tmp_path: Path):
+    cfg = tmp_path / "ragdb.toml"
+    cfg.write_text('[ingest]\nmax_file_mb = 20\ninclude_exts = [".md", ".pdf"]\n',
+                   encoding="utf-8")
+    s = Settings.load(path=cfg)
+    assert s.ingest.max_file_mb == 20
+    assert s.ingest.include_exts == [".md", ".pdf"]
+
+
+def test_effective_ingest_source_override():
+    s = Settings.load(path=None)
+    cfg = SourceConfig(name="a", type="folder", path="/tmp/x",
+                       include_exts=[".md"], max_file_mb=10)
+    eff = s.effective_ingest(cfg)
+    assert eff.include_exts == [".md"]
+    assert eff.max_file_mb == 10
+    assert eff.max_files_per_source == 5000  # 未覆盖项取全局
+
+
+def test_effective_ingest_global_fallback():
+    s = Settings.load(path=None)
+    cfg = SourceConfig(name="a", type="folder", path="/tmp/x")
+    assert s.effective_ingest(cfg) == s.ingest
