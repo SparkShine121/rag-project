@@ -42,6 +42,7 @@ class SourceConfig(BaseModel):
     token_env: str | None = None   # 私有仓库 token 的环境变量名；None = 匿名（公开仓库）
     include_exts: list[str] | None = None   # None = 用全局 ingest.include_exts
     max_file_mb: int | None = None          # None = 用全局 ingest.max_file_mb
+    max_files_per_source: int | None = None  # None = 用全局 ingest.max_files_per_source
 
     @model_validator(mode="after")
     def _validate_kind(self) -> SourceConfig:
@@ -51,8 +52,8 @@ class SourceConfig(BaseModel):
             raise ValueError(f"name 不能为空或包含 / 与首尾空白: {self.name!r}")
         if self.type == "github" and not self.repo:
             raise ValueError("github 缺 repo")
-        if self.type == "obsidian" and not self.path:
-            raise ValueError("obsidian 缺 path")
+        if self.type in ("obsidian", "folder") and not self.path:
+            raise ValueError(f"{self.type} 缺 path")
         return self
 
 
@@ -129,4 +130,6 @@ class Settings(BaseSettings):
             merged.include_exts = list(source.include_exts)
         if source.max_file_mb is not None:
             merged.max_file_mb = source.max_file_mb
+        if source.max_files_per_source is not None:
+            merged.max_files_per_source = source.max_files_per_source
         return merged

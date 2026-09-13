@@ -7,6 +7,7 @@ from pathlib import Path
 
 from ragdb.config import Settings, SourceConfig
 from ragdb.ingest.connector import ObsidianConnector, SourceConnector
+from ragdb.ingest.folder import FolderConnector
 from ragdb.ingest.github import GitHubConnector
 
 
@@ -20,6 +21,13 @@ def build_connectors(settings: Settings) -> list[tuple[SourceConfig, SourceConne
                     f"知识源路径不存在: {path}（来源 '{cfg.name}'）"
                 )
             items.append((cfg, ObsidianConnector(path)))
+        elif cfg.type == "folder":
+            path = Path(cfg.path).expanduser()
+            if not path.exists():
+                raise FileNotFoundError(
+                    f"知识源路径不存在: {path}（来源 '{cfg.name}'）"
+                )
+            items.append((cfg, FolderConnector(cfg, settings.effective_ingest(cfg))))
         elif cfg.type == "github":
             token = os.environ.get(cfg.token_env) if cfg.token_env else None
             if cfg.token_env and token is None:

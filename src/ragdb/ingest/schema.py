@@ -26,6 +26,8 @@ class RawDocument:
     def content_hash(self) -> str:
         if self.hash_override is not None:
             return self.hash_override
+        if self.binary is not None:  # 二进制内容（PDF 等）按字节哈希
+            return hashlib.sha256(self.binary).hexdigest()
         return content_hash(self.content)
 
 

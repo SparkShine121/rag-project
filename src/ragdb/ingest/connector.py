@@ -36,6 +36,26 @@ class SourceConnector(ABC):
     def fetch_changes(self, known: dict[str, FileStamp]) -> ChangeSet: ...
 
 
+def read_md(p: Path, rel: str, source_type: str) -> RawDocument:
+    """读 md 文件为 RawDocument（frontmatter 剥离标题、编码容错）。md 系连接器共用。"""
+    st = p.stat()
+    try:
+        text = p.read_text(encoding="utf-8")
+        read_error = False
+    except UnicodeDecodeError:
+        text = p.read_bytes().decode("utf-8", errors="replace")
+        read_error = True
+    return RawDocument(
+        source_type=source_type,
+        source_id=rel,
+        title=extract_title(text, p.stem),
+        content=text,
+        metadata={
+            "mtime": st.st_mtime, "size": st.st_size, "read_error": read_error
+        },
+    )
+
+
 class ObsidianConnector(SourceConnector):
     def __init__(self, vault_path: Path):
         self._vault = vault_path
@@ -51,23 +71,7 @@ class ObsidianConnector(SourceConnector):
 
     def _read(self, p: Path) -> RawDocument:
         rel = p.relative_to(self._vault).as_posix()
-        st = p.stat()
-        try:
-            text = p.read_text(encoding="utf-8")
-            read_error = False
-        except UnicodeDecodeError:
-            text = p.read_bytes().decode("utf-8", errors="replace")
-            read_error = True
-        title = extract_title(text, p.stem)
-        return RawDocument(
-            source_type="obsidian",
-            source_id=rel,
-            title=title,
-            content=text,
-            metadata={
-                "mtime": st.st_mtime, "size": st.st_size, "read_error": read_error
-            },
-        )
+        return read_md(p, rel, "obsidian")
 
     def fetch_all(self) -> list[RawDocument]:
         return [self._read(p) for p in self._walk()]
