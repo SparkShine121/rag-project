@@ -7,6 +7,7 @@ from pathlib import Path
 
 import frontmatter
 
+from ragdb.ingest.changeset import build_change_set
 from ragdb.ingest.schema import (
     ChangeSet,
     FileStamp,
@@ -14,6 +15,15 @@ from ragdb.ingest.schema import (
 )
 
 _SKIP_DIRS = {".obsidian", ".trash"}
+
+
+def extract_title(content: str, stem: str) -> str:
+    """首个 H1 作标题（跳过 frontmatter），无则用文件名 stem。md 系连接器共用。"""
+    body = frontmatter.loads(content).content
+    for line in body.splitlines():
+        if line.startswith("# ") and not line.startswith("##"):
+            return line[2:].strip()
+    return stem
 
 
 class SourceConnector(ABC):
@@ -48,12 +58,7 @@ class ObsidianConnector(SourceConnector):
         except UnicodeDecodeError:
             text = p.read_bytes().decode("utf-8", errors="replace")
             read_error = True
-        body = frontmatter.loads(text).content  # 标题提取须跳过 frontmatter
-        title = p.stem
-        for line in body.splitlines():
-            if line.startswith("# ") and not line.startswith("##"):
-                title = line[2:].strip()
-                break
+        title = extract_title(text, p.stem)
         return RawDocument(
             source_type="obsidian",
             source_id=rel,
@@ -68,35 +73,13 @@ class ObsidianConnector(SourceConnector):
         return [self._read(p) for p in self._walk()]
 
     def fetch_changes(self, known: dict[str, FileStamp]) -> ChangeSet:
-        cs = ChangeSet()
-        current: dict[str, tuple[float, int]] = {
-            p.relative_to(self._vault).as_posix(): (
-                p.stat().st_mtime,
-                p.stat().st_size,
-            )
-            for p in self._walk()
-        }
-        deleted_ids = [r for r in known if r not in current]
-        hash_to_old: dict[str, str] = {known[r][2]: r for r in deleted_ids}
-        consumed: set[str] = set()
-
-        for rel, (mtime, size) in current.items():
+        files = {p.relative_to(self._vault).as_posix(): p for p in self._walk()}
+        current: dict[str, FileStamp] = {}
+        for rel, p in files.items():
+            st = p.stat()
             k = known.get(rel)
-            if k is not None and k[0] == mtime and k[1] == size:
-                cs.unchanged += 1
-                continue
-            doc = self._read(self._vault / rel)
-            if k is not None:
-                if doc.content_hash == k[2]:
-                    cs.unchanged += 1  # 内容没变，引擎稍后刷新戳
-                else:
-                    cs.modified.append(doc)
-            elif doc.content_hash in hash_to_old and hash_to_old[doc.content_hash] not in consumed:
-                old_id = hash_to_old[doc.content_hash]
-                consumed.add(old_id)
-                cs.moved.append((old_id, doc))
+            if k is not None and k[0] == st.st_mtime and k[1] == st.st_size:
+                current[rel] = (st.st_mtime, st.st_size, k[2])  # 快路径：沿用旧 hash
             else:
-                cs.added.append(doc)
-
-        cs.deleted = [r for r in deleted_ids if r not in consumed]
-        return cs
+                current[rel] = (st.st_mtime, st.st_size, self._read(p).content_hash)
+        return build_change_set(known, current, lambda rel: self._read(self._vault / rel))
