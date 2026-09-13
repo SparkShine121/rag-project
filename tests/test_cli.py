@@ -127,13 +127,13 @@ def test_end_to_end(tmp_path):
     p = vault / "笔记1.md"
     p.write_text(p.read_text(encoding="utf-8") + "\n追加", encoding="utf-8")
     assert core.engine.run().updated == 1
-    assert any(n["source_id"] == "笔记1.md" for n in core.store.list_notes())
+    assert any(n["source_id"] == "obsidian/笔记1.md" for n in core.store.list_notes())
 
     before = core.store.count()
     (vault / "笔记3.md").rename(vault / "moved.md")
     assert core.engine.run().moved == 1
     assert core.store.count() == before  # 移动无增减
-    assert not core.store.fetch_by_source("笔记3.md")  # 无孤儿
+    assert not core.store.fetch_by_source("obsidian/笔记3.md")  # 无孤儿
 
 
 def test_sync_local_path_prints_json(monkeypatch, tmp_path, capsys):

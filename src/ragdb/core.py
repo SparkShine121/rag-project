@@ -37,9 +37,10 @@ class Core:
 
     @cached_property
     def connector(self):
-        from ragdb.ingest.connector import ObsidianConnector
+        from ragdb.ingest.factory import build_connectors
+        from ragdb.ingest.multi import MultiSourceConnector
 
-        return ObsidianConnector(self.settings.vault_path)
+        return MultiSourceConnector(build_connectors(self.settings))
 
     @cached_property
     def chunker(self):
