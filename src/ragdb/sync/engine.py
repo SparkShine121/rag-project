@@ -26,12 +26,14 @@ def _empty_vecs(embedder, n: int) -> np.ndarray:
 
 
 class SyncEngine:
-    def __init__(self, connector, embedder, store, state, chunker):
+    def __init__(self, connector, embedder, store, state, chunker,
+                 pipeline=None):
         self._connector = connector
         self._embedder = embedder
         self._store = store
         self._state = state
         self._chunker = chunker
+        self._pipeline = pipeline  # v1.2 多类型分发；None = 仅 md（兼容）
 
     def run(self, full: bool = False) -> SyncReport:
         t0 = time.perf_counter()
@@ -55,7 +57,10 @@ class SyncEngine:
             # （变更检测以 content_hash 为准，戳仅作簿记）
             mtime = doc.metadata.get("mtime", 0.0)
             size = doc.metadata.get("size", len(doc.content.encode("utf-8")))
-            chunks = self._chunker.split(parse_note(doc))
+            if self._pipeline is not None:
+                chunks = self._pipeline.chunk(doc)
+            else:
+                chunks = self._chunker.split(parse_note(doc))
             if not chunks:  # 清空正文 → 旧向量必须清除（终审 I1）
                 self._store.delete_by_source(doc.source_id)
                 self._state.upsert(doc.source_id, mtime, size, doc.content_hash, 0)

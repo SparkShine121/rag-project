@@ -70,11 +70,30 @@ class Core:
         return self.hub.reranker
 
     @cached_property
+    def ingest_pipeline(self):
+        from ragdb.ingest.code import CodeChunker
+        from ragdb.ingest.ocr import available as ocr_available
+        from ragdb.ingest.ocr import recognize_png
+        from ragdb.ingest.pdf import PdfParser
+        from ragdb.ingest.pipeline import IngestPipeline
+
+        return IngestPipeline(
+            chunker=self.chunker,
+            code_chunker=CodeChunker(token_counter=self.chunker.count,
+                                     max_tokens=self.settings.chunk.max_tokens),
+            pdf_parser=PdfParser(
+                ocr_fn=recognize_png if ocr_available() else None,
+                token_counter=self.chunker.count,
+            ),
+        )
+
+    @cached_property
     def engine(self):
         from ragdb.sync.engine import SyncEngine
 
         return SyncEngine(
-            self.connector, self.embedder, self.store, self.state, self.chunker
+            self.connector, self.embedder, self.store, self.state, self.chunker,
+            pipeline=self.ingest_pipeline,
         )
 
     @cached_property
