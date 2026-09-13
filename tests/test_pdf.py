@@ -1,5 +1,7 @@
 """PDF 管线测试：按页切块、OCR 回退（注入 fake）、扫描版报错。真实 OCR 见 slow。"""
 
+import os
+
 import pymupdf
 import pytest
 
@@ -74,6 +76,8 @@ def test_empty_pdf_zero_pages():
     assert _parser().split(_doc(make_pdf([]))) == []
 
 
+@pytest.mark.skipif(os.environ.get("RAGDB_SLOW") != "1",
+                    reason="真实 Vision OCR，需 RAGDB_SLOW=1")
 @pytest.mark.slow
 def test_real_ocr_apple_vision():
     """真实 Apple Vision OCR 冒烟：渲染大字文本 → OCR 识别关键数字。"""

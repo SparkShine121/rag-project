@@ -85,6 +85,7 @@ def test_fetch_changes_skip_unchanged_download():
     known = {"README.md": (0.0, 5, "shaR"), "docs/a.md": (0.0, 10, "shaA")}
     cs = conn.fetch_changes(known)
     assert cs.unchanged == 1 and cs.deleted == ["docs/a.md"]
+    assert cs.added == [] and cs.modified == [] and cs.moved == []
     assert sum(1 for c in calls if "/git/blobs/" in c.url.path) == 0  # 未变更零下载
 
 
@@ -176,6 +177,42 @@ def test_oversized_github_file_skipped_with_hint():
     assert [d.source_id for d in cs.added] == ["small.md"]
     assert any("超过大小上限" in r for _, r in cs.failed)
     assert sum(1 for c in calls if "/git/blobs/shaB" in c.url.path) == 0  # 超限不下载
+
+
+def test_rate_limit_message_distinguishes_403_and_429():
+    """终审 I2（v1.1 恢复）：限流不得误报为认证失败。"""
+    routes403 = {("GET", "/git/trees/main"): (403, {"message": "rate limit"})}
+    conn = GitHubConnector(_cfg(), client=_client(routes403, []))
+    with pytest.raises(ValueError, match="认证/权限|限流"):
+        conn.fetch_all()
+    routes429 = {("GET", "/git/trees/main"): (429, {"message": "too many"})}
+    conn = GitHubConnector(_cfg(), client=_client(routes429, []))
+    with pytest.raises(ValueError, match="限流"):
+        conn.fetch_all()
+
+
+def test_empty_blob_does_not_block_source():
+    """重审 N1 恢复（blobs 路由版）：0 字节 blob 不阻断源同步。"""
+    tree = {"tree": [{"path": "empty.md", "type": "blob", "sha": "s0", "size": 0}],
+            "truncated": False}
+    routes = {("GET", "/git/trees/main"): (200, tree),
+              ("GET", "/git/blobs/s0"): (200, {"content": "", "encoding": "base64",
+                                               "size": 0})}
+    conn = GitHubConnector(_cfg(), client=_client(routes, []))
+    docs = conn.fetch_all()
+    assert [d.source_id for d in docs] == ["empty.md"] and docs[0].content == ""
+
+
+def test_bad_encoding_blob_raises_for_engine_failed():
+    """异常编码 + 非空 blob → 显式报错（引擎按单文件 failed 隔离）。"""
+    tree = {"tree": [{"path": "bad.md", "type": "blob", "sha": "s1", "size": 5}],
+            "truncated": False}
+    routes = {("GET", "/git/trees/main"): (200, tree),
+              ("GET", "/git/blobs/s1"): (200, {"content": "", "encoding": "none",
+                                               "size": 5})}
+    conn = GitHubConnector(_cfg(), client=_client(routes, []))
+    with pytest.raises(ValueError, match="无法解析"):
+        conn.fetch_all()
 
 
 def test_max_files_cap_hint():

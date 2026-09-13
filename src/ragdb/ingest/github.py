@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 from pathlib import Path
+from urllib.parse import quote
 
 import httpx
 
@@ -103,7 +104,8 @@ class GitHubConnector(SourceConnector):
         if data.get("encoding", "base64") != "base64":
             raise ValueError(f"无法解析 blob 内容: {path}")
         raw = base64.b64decode(encoded) if encoded else b""
-        html_url = f"https://github.com/{self._cfg.repo}/blob/{self._cfg.ref}/{path}"
+        html_path = quote(path)  # 文件名含空格/#/中文时保持 URL 有效（重审 N-B）
+        html_url = f"https://github.com/{self._cfg.repo}/blob/{self._cfg.ref}/{html_path}"
         if path.lower().endswith(".pdf"):
             # PDF 是二进制：内容放 binary，不进 content 字符串
             return RawDocument(
