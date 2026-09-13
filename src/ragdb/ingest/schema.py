@@ -20,6 +20,7 @@ class RawDocument:
     content: str
     metadata: dict = field(default_factory=dict)
     hash_override: str | None = None  # GitHub 源用 git blob sha（同 blob = 同内容）
+    binary: bytes | None = None       # 二进制内容（如 PDF），不进 content 字符串
 
     @property
     def content_hash(self) -> str:
