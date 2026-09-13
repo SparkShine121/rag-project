@@ -32,9 +32,9 @@ def make_vault(root: Path) -> Path:
         p = vault / name
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(content, encoding="utf-8")
-    (vault / ".obsidian").mkdir()
+    (vault / ".obsidian").mkdir(exist_ok=True)
     (vault / ".obsidian" / "config.json").write_text("{}", encoding="utf-8")
-    (vault / ".trash").mkdir()
+    (vault / ".trash").mkdir(exist_ok=True)
     (vault / ".trash" / "x.md").write_text("垃圾", encoding="utf-8")
     (vault / ".hidden.md").write_text("隐藏", encoding="utf-8")
     (vault / "attach.png").write_bytes(b"\x89PNG")

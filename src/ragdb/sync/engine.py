@@ -50,20 +50,19 @@ class SyncEngine:
         def index(doc) -> int:
             if doc.metadata.get("read_error"):
                 raise ValueError("文件不是有效 UTF-8 文本")
+            # mtime/size 为 obsidian 文件系统语义；github 等无此键时用内容长度兜底
+            # （变更检测以 content_hash 为准，戳仅作簿记）
+            mtime = doc.metadata.get("mtime", 0.0)
+            size = doc.metadata.get("size", len(doc.content.encode("utf-8")))
             chunks = self._chunker.split(parse_note(doc))
             if not chunks:  # 清空正文 → 旧向量必须清除（终审 I1）
                 self._store.delete_by_source(doc.source_id)
-                self._state.upsert(
-                    doc.source_id, doc.metadata["mtime"], doc.metadata["size"],
-                    doc.content_hash, 0,
-                )
+                self._state.upsert(doc.source_id, mtime, size, doc.content_hash, 0)
                 return 0
             vecs = self._embedder.embed([c.content for c in chunks])
             self._store.upsert(chunks, vecs)
-            self._state.upsert(
-                doc.source_id, doc.metadata["mtime"], doc.metadata["size"],
-                doc.content_hash, len(chunks),
-            )
+            self._state.upsert(doc.source_id, mtime, size, doc.content_hash,
+                               len(chunks))
             return len(chunks)
 
         for doc in cs.added:
@@ -99,7 +98,9 @@ class SyncEngine:
                 self._store.upsert(chunks, vecs)
                 self._state.delete(old_id)
                 self._state.upsert(
-                    doc.source_id, doc.metadata["mtime"], doc.metadata["size"],
+                    doc.source_id,
+                    doc.metadata.get("mtime", 0.0),
+                    doc.metadata.get("size", len(doc.content.encode("utf-8"))),
                     doc.content_hash, len(chunks),
                 )
                 report.moved += 1
