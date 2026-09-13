@@ -19,9 +19,12 @@ class RawDocument:
     title: str
     content: str
     metadata: dict = field(default_factory=dict)
+    hash_override: str | None = None  # GitHub 源用 git blob sha（同 blob = 同内容）
 
     @property
     def content_hash(self) -> str:
+        if self.hash_override is not None:
+            return self.hash_override
         return content_hash(self.content)
 
 
