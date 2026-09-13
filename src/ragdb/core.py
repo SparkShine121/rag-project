@@ -15,10 +15,12 @@ class Core:
 
     @classmethod
     def from_settings(cls, settings: Settings) -> Core:
-        if not settings.vault_path.exists():  # spec §7：配置校验不过不启动
-            raise FileNotFoundError(
-                f"知识库路径不存在: {settings.vault_path}（检查 ragdb.toml 的 vault_path）"
-            )
+        # 装配即校验：来源路径、GitHub 凭证等问题在此暴露，
+        # serve/CLI/MCP 不得带病启动（终审 I3）；vault 校验移入工厂（终审 I5，
+        # github-only 配置合法）
+        from ragdb.ingest.factory import build_connectors
+
+        build_connectors(settings)
         return cls(settings=settings)
 
     @cached_property

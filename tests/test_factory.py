@@ -58,3 +58,25 @@ def test_core_connector_is_multi_source(tmp_path):
     core = Core.from_settings(settings)
     assert isinstance(core.connector, MultiSourceConnector)
     assert core.connector.source_prefixes == ["obsidian/"]
+
+
+def test_core_construction_rejects_missing_github_token(tmp_path, monkeypatch):
+    """终审 I3：token 缺失必须在装配时失败，serve/CLI 不得带病启动。"""
+    from ragdb.core import Core
+
+    cfg = SourceConfig(name="docs", type="github", repo="o/r",
+                       token_env="NO_SUCH_TOKEN")
+    settings = Settings(sources=[cfg])
+    monkeypatch.delenv("NO_SUCH_TOKEN", raising=False)
+    with pytest.raises(ValueError, match="NO_SUCH_TOKEN"):
+        Core.from_settings(settings)
+
+
+def test_github_only_config_skips_vault_check(tmp_path):
+    """终审 I5：vault_path 校验只针对 obsidian 源，github-only 配置合法。"""
+    from ragdb.core import Core
+
+    cfg = SourceConfig(name="docs", type="github", repo="o/r")
+    core = Core.from_settings(Settings(sources=[cfg],
+                                       data_dir=str(tmp_path / "d")))
+    assert core.connector.source_prefixes == ["docs/"]

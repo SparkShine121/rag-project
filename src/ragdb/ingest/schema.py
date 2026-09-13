@@ -35,6 +35,7 @@ class ChangeSet:
     moved: list[tuple[str, RawDocument]] = field(default_factory=list)
     deleted: list[str] = field(default_factory=list)
     unchanged: int = 0
+    failed: list[tuple[str, str]] = field(default_factory=list)  # (来源名, 原因)
 
 
 @dataclass

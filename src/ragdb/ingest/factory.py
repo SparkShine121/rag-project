@@ -14,7 +14,12 @@ def build_connectors(settings: Settings) -> list[tuple[SourceConfig, SourceConne
     items: list[tuple[SourceConfig, SourceConnector]] = []
     for cfg in settings.effective_sources():
         if cfg.type == "obsidian":
-            items.append((cfg, ObsidianConnector(Path(cfg.path).expanduser())))
+            path = Path(cfg.path).expanduser()
+            if not path.exists():  # 装配即校验：来源路径问题不启动（终审 I3/I5）
+                raise FileNotFoundError(
+                    f"知识源路径不存在: {path}（来源 '{cfg.name}'）"
+                )
+            items.append((cfg, ObsidianConnector(path)))
         elif cfg.type == "github":
             token = os.environ.get(cfg.token_env) if cfg.token_env else None
             if cfg.token_env and token is None:

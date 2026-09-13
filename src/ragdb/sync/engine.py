@@ -42,6 +42,7 @@ class SyncEngine:
                     self._store.delete_by_source(sid)
                     self._state.delete(sid)
             cs = self._connector.fetch_changes(self._state.get_all())
+            report.failed.extend(cs.failed)  # 单源故障隔离的失败项（终审 I1）
         except Exception as e:  # noqa: BLE001 —— 扫描级失败：整轮终止但结构化汇报
             report.failed.append(("<scan>", str(e)))
             report.duration = time.perf_counter() - t0

@@ -23,6 +23,10 @@ class SourceConfig(BaseModel):
 
     @model_validator(mode="after")
     def _validate_kind(self) -> SourceConfig:
+        # name 是 source_id 路径前缀：含 / 或空白会造成前缀碰撞/空段，
+        # 表现为文档每轮 deleted→added 抖动（终审 C1），必须在配置期拒绝
+        if not self.name or "/" in self.name or self.name.strip() != self.name:
+            raise ValueError(f"name 不能为空或包含 / 与首尾空白: {self.name!r}")
         if self.type == "github" and not self.repo:
             raise ValueError("github 缺 repo")
         if self.type == "obsidian" and not self.path:

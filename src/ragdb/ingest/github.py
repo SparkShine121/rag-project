@@ -36,9 +36,19 @@ class GitHubConnector(SourceConnector):
                 f"GitHub 仓库或 ref 不存在（或为私有仓库而未配置 token）: "
                 f"{self._cfg.repo}@{self._cfg.ref}"
             )
+        if resp.status_code == 429 or (
+            resp.status_code == 403
+            and resp.headers.get("x-ratelimit-remaining") == "0"
+        ):
+            raise ValueError(
+                "GitHub API 限流——匿名额度仅 60 次/小时，"
+                "请在来源配置中设置 token_env 或降低同步频率"
+            )
         if resp.status_code in (401, 403):
             raise ValueError(
-                f"GitHub 认证失败（{resp.status_code}）——检查 token_env 指向的 token"
+                f"GitHub 认证/权限被拒（{resp.status_code}）——检查 token_env 指向的 "
+                f"token 是否有效、是否有该仓库权限；若非认证问题则可能是限流"
+                f"（匿名 60 次/小时）"
             )
         resp.raise_for_status()
         return resp.json()
@@ -60,8 +70,12 @@ class GitHubConnector(SourceConnector):
         data = self._api_get(f"/repos/{self._cfg.repo}/contents/{path}",
                              params={"ref": self._cfg.ref})
         encoded = data.get("content", "")
-        text = (base64.b64decode(encoded).decode("utf-8")
-                if data.get("encoding") == "base64" else encoded)
+        if data.get("encoding") != "base64" or not encoded:
+            # >1MB 文件 Contents API 返回 encoding:"none" 且 content 为空（终审 I4）
+            raise ValueError(
+                f"文件过大或无法获取内容（Contents API 对 >1MB 文件返回空内容）: {path}"
+            )
+        text = base64.b64decode(encoded).decode("utf-8")
         sha = self._sha_by_path.get(path, data.get("sha", ""))
         return RawDocument(
             source_type="github",

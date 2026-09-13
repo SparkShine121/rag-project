@@ -107,3 +107,17 @@ def test_fetch_changes_routes_by_prefix_and_merges():
 def test_source_prefixes():
     multi = MultiSourceConnector([(_cfg("a"), FakeSub()), (_cfg("b"), FakeSub())])
     assert multi.source_prefixes == ["a/", "b/"]
+
+
+def test_per_source_failure_isolation():
+    """终审 I1：单个 GitHub 源故障不得阻断其它源的同步。"""
+    class BoomSub(FakeSub):
+        def fetch_changes(self, known):
+            raise ValueError("API 限流")
+
+    sub_a = FakeSub(changes=ChangeSet(added=[_doc("1.md")]))
+    multi = MultiSourceConnector([(_cfg("a"), sub_a), (_cfg("b"), BoomSub())])
+    cs = multi.fetch_changes({"zombie/x.md": (1, 1, "h")})
+    assert [d.source_id for d in cs.added] == ["a/1.md"]  # 健康源照常
+    assert cs.deleted == ["zombie/x.md"]
+    assert len(cs.failed) == 1 and "限流" in cs.failed[0][1]

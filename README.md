@@ -1,6 +1,8 @@
 # ragdb — 个人 RAG 数据库
 
-把 Obsidian 知识库变成可语义检索的个人 RAG 服务：本地 BAAI 模型（bge-m3 嵌入 + bge-reranker-v2-m3 重排，MPS GPU），经 **stdio MCP / Streamable HTTP MCP / localhost REST** 三通道供 Claude、OpenClaw、Hermes 等 agent 只读调用。
+把知识库变成可语义检索的个人 RAG 服务：本地 BAAI 模型（bge-m3 嵌入 + bge-reranker-v2-m3 重排，MPS GPU），经 **stdio MCP / Streamable HTTP MCP / localhost REST** 三通道供 Claude、OpenClaw、Hermes 等 agent 只读调用。
+
+**多知识源（v1.1）**：`ragdb.toml` 的 `[[sources]]` 可同时接入 Obsidian vault 与若干 GitHub 仓库（公开/私有，token 走环境变量；一期索引 .md 文件），来源前缀化互不冲突，增删来源自动清理孤儿索引。
 
 ## 快速开始
 

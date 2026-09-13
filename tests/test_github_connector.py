@@ -149,3 +149,27 @@ def test_title_from_h1_not_frontmatter():
     conn = GitHubConnector(_cfg(), client=_client(routes, calls))
     doc = conn.fetch_all()[0]
     assert doc.title == "真标题"
+
+
+def test_rate_limit_message_distinguishes_403_and_429():
+    """终审 I2：匿名 60 次/小时的 403 限流不得误报为认证失败。"""
+    routes403 = {("GET", "/git/trees/main"): (403, {"message": "rate limit"})}
+    conn = GitHubConnector(_cfg(), client=_client(routes403, []))
+    with pytest.raises(ValueError, match="认证/权限|限流"):
+        conn.fetch_all()
+    routes429 = {("GET", "/git/trees/main"): (429, {"message": "too many"})}
+    conn = GitHubConnector(_cfg(), client=_client(routes429, []))
+    with pytest.raises(ValueError, match="限流"):
+        conn.fetch_all()
+
+
+def test_oversized_md_rejected_loudly():
+    """终审 I4：>1MB 文件 Contents API 返回 encoding=none/空内容，必须显式报错。"""
+    routes = {("GET", "/git/trees/main"): (200, {"tree": [
+        {"path": "big.md", "type": "blob", "sha": "s", "size": 2_000_000}],
+        "truncated": False}),
+        ("GET", "/contents/big.md"): (200, {"content": "", "encoding": "none",
+                                            "html_url": ""})}
+    conn = GitHubConnector(_cfg(), client=_client(routes, []))
+    with pytest.raises(ValueError, match="过大|1MB"):
+        conn.fetch_all()

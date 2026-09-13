@@ -37,7 +37,11 @@ class MultiSourceConnector(SourceConnector):
             prefix = f"{cfg.name}/"
             sub_known = {k[len(prefix):]: v for k, v in known.items()
                          if k.startswith(prefix)}
-            cs = conn.fetch_changes(sub_known)
+            try:
+                cs = conn.fetch_changes(sub_known)
+            except Exception as e:  # noqa: BLE001 —— 单源故障隔离（终审 I1）
+                merged.failed.append((cfg.name, str(e)))
+                continue
             for d in cs.added:
                 merged.added.append(replace(d, source_id=prefix + d.source_id))
             for d in cs.modified:
@@ -47,6 +51,7 @@ class MultiSourceConnector(SourceConnector):
                                      replace(d, source_id=prefix + d.source_id)))
             merged.deleted.extend(prefix + p for p in cs.deleted)
             merged.unchanged += cs.unchanged
+            merged.failed.extend(cs.failed)
         for k in known:  # 无主前缀 → 孤儿清理
             if not any(k.startswith(p) for p in self.source_prefixes):
                 merged.deleted.append(k)

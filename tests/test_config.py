@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from ragdb.config import Settings
+from ragdb.config import Settings, SourceConfig
 
 
 def test_defaults():
@@ -90,3 +90,10 @@ def test_sources_validation_errors(tmp_path: Path, toml: str, reason: str):
     cfg.write_text(toml, encoding="utf-8")
     with pytest.raises(Exception, match=reason):
         Settings.load(path=cfg)
+
+
+@pytest.mark.parametrize("bad", ["a/b", "", "  ", "a//b"])
+def test_source_name_forbids_slash_and_blank(bad: str):
+    """终审 C1：前缀碰撞会让文档每轮 deleted→added 抖动，name 必须是单段标识。"""
+    with pytest.raises(Exception, match="name"):
+        SourceConfig(name=bad, type="obsidian", path="/tmp/x")
