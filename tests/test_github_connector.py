@@ -173,3 +173,15 @@ def test_oversized_md_rejected_loudly():
     conn = GitHubConnector(_cfg(), client=_client(routes, []))
     with pytest.raises(ValueError, match="过大|1MB"):
         conn.fetch_all()
+
+
+def test_empty_md_does_not_block_source():
+    """重审 N1：0 字节 .md（encoding=none）不应被误判过大，应产出空文档。"""
+    routes = {("GET", "/git/trees/main"): (200, {"tree": [
+        {"path": "empty.md", "type": "blob", "sha": "s0", "size": 0}],
+        "truncated": False}),
+        ("GET", "/contents/empty.md"): (200, {"content": "", "encoding": "none",
+                                              "size": 0, "html_url": ""})}
+    conn = GitHubConnector(_cfg(), client=_client(routes, []))
+    docs = conn.fetch_all()
+    assert len(docs) == 1 and docs[0].content == ""  # 空文档 → 引擎按 0 块处理

@@ -150,3 +150,17 @@ def test_sync_local_path_prints_json(monkeypatch, tmp_path, capsys):
     assert cli._coordinated_sync(core, full=False) == 0
     out = capsys.readouterr().out
     assert json.loads(out)["added"] == 3
+
+
+def test_sync_exit_code_nonzero_when_failed(monkeypatch, tmp_path, capsys):
+    from ragdb.sync.engine import SyncReport
+
+    class FailedEngine:
+        def run(self, full=False):
+            return SyncReport(added=1, failed=[("gh", "限流")])
+
+    core = _stub_core(tmp_path, engine=FailedEngine())
+    monkeypatch.setattr(cli.httpx, "get",
+                        lambda *a, **kw: (_ for _ in ()).throw(httpx.ConnectError("down")))
+    assert cli._coordinated_sync(core, full=False) == 1
+    assert "限流" in capsys.readouterr().out

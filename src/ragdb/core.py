@@ -11,17 +11,17 @@ from ragdb.config import Settings
 @dataclass
 class Core:
     settings: Settings
+    _connectors: list = field(default=None, repr=False)
     _extra: dict = field(default_factory=dict, repr=False)
 
     @classmethod
     def from_settings(cls, settings: Settings) -> Core:
         # 装配即校验：来源路径、GitHub 凭证等问题在此暴露，
         # serve/CLI/MCP 不得带病启动（终审 I3）；vault 校验移入工厂（终审 I5，
-        # github-only 配置合法）
+        # github-only 配置合法）。构建结果复用，避免重复建 httpx.Client（重审 N2）
         from ragdb.ingest.factory import build_connectors
 
-        build_connectors(settings)
-        return cls(settings=settings)
+        return cls(settings=settings, _connectors=build_connectors(settings))
 
     @cached_property
     def store(self):
@@ -42,7 +42,9 @@ class Core:
         from ragdb.ingest.factory import build_connectors
         from ragdb.ingest.multi import MultiSourceConnector
 
-        return MultiSourceConnector(build_connectors(self.settings))
+        items = (self._connectors if self._connectors is not None
+                 else build_connectors(self.settings))
+        return MultiSourceConnector(items)
 
     @cached_property
     def chunker(self):

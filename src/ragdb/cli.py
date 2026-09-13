@@ -24,14 +24,20 @@ def _print_report(report) -> None:
     print(json.dumps(report, ensure_ascii=False, indent=2))
 
 
+def _has_failed(report) -> bool:
+    failed = report.get("failed") if isinstance(report, dict) else report.failed
+    return bool(failed)
+
+
 def _coordinated_sync(core: Core, full: bool) -> int:
     base = f"http://127.0.0.1:{core.settings.port}"
     try:
         if httpx.get(f"{base}/api/v1/health", timeout=1.0).status_code == 200:
             resp = httpx.post(f"{base}/api/v1/sync", json={"full": full},
                               timeout=300.0)
-            _print_report(resp.json())
-            return 0
+            payload = resp.json()
+            _print_report(payload)
+            return 1 if payload.get("failed") else 0
     except httpx.HTTPError:
         pass  # serve 不在，走本地写
     lock_path = core.settings.data_dir / "ragdb.lock"
@@ -44,7 +50,7 @@ def _coordinated_sync(core: Core, full: bool) -> int:
             return 1
         report = core.engine.run(full=full)
         _print_report(report)
-        return 0
+        return 1 if _has_failed(report) else 0
 
 
 def _cmd_serve(core: Core) -> int:

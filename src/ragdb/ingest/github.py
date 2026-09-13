@@ -70,12 +70,13 @@ class GitHubConnector(SourceConnector):
         data = self._api_get(f"/repos/{self._cfg.repo}/contents/{path}",
                              params={"ref": self._cfg.ref})
         encoded = data.get("content", "")
-        if data.get("encoding") != "base64" or not encoded:
-            # >1MB 文件 Contents API 返回 encoding:"none" 且 content 为空（终审 I4）
+        # >1MB 文件 Contents API 返回 encoding:"none" 且 content 为空（终审 I4）；
+        # 0 字节文件同样返回空内容，但不属于过大（重审 N1）
+        if (data.get("encoding") != "base64" or not encoded) and data.get("size", 1) > 0:
             raise ValueError(
                 f"文件过大或无法获取内容（Contents API 对 >1MB 文件返回空内容）: {path}"
             )
-        text = base64.b64decode(encoded).decode("utf-8")
+        text = base64.b64decode(encoded).decode("utf-8") if encoded else ""
         sha = self._sha_by_path.get(path, data.get("sha", ""))
         return RawDocument(
             source_type="github",

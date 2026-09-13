@@ -83,7 +83,9 @@ def create_app(core) -> FastAPI:
                     while True:
                         try:
                             # 线程池执行：长同步不阻塞事件循环（health 保持响应）
-                            await asyncio.to_thread(core.engine.run)
+                            report = await asyncio.to_thread(core.engine.run)
+                            if report.failed:
+                                logger.warning("同步存在失败项: %s", report.failed)
                         except Exception:  # 循环不退出
                             logger.exception("后台同步失败")
                         await asyncio.sleep(core.settings.interval_secs)
