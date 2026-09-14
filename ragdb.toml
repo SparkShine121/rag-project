@@ -46,6 +46,9 @@ device = "mps"
 dtype = "float16"
 # 嵌入批大小
 embed_batch = 32
+# 模型空闲卸载 TTL（秒，v1.3）：serve 空闲超过该时长自动释放模型权重
+# （footprint 实测 3.7GB → 1.4GB，省 62%）；再次检索自动重载（~19s）。0 = 常驻不卸载
+unload_idle_secs = 1800
 
 # ── 知识来源（v1.1 多渠道 / v1.2 多类型）───────────────
 # [ingest] 过滤配置（folder/github 源生效；obsidian 恒为 md-only）
@@ -76,3 +79,11 @@ path = "~/Documents/Obsidian Vault"
 # name = "docs"                  # 检索路径前缀，如 docs/报告.pdf > 第 1 页
 # type = "folder"
 # path = "~/Documents/资料库"    # 按 [ingest] 白名单遍历
+
+# 实际启用的 GitHub 来源（2026-09-14 接入，私有仓库，token 从环境变量 GITHUB_TOKEN 读取）
+[[sources]]
+name = "myrepo"
+type = "github"
+repo = "SparkShine121/my_bookstore"
+ref = "main"
+token_env = "GITHUB_TOKEN"
