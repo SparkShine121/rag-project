@@ -16,3 +16,6 @@ __pycache__/
 # 本地数据
 *.lance/
 ragdb.lock
+
+# 用户级 skill 符号链接（指向 ~/.claude/skills/，机器相关）
+.claude/skills/agent-evolution*
