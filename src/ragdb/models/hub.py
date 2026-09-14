@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from typing import Protocol, runtime_checkable
 
 import numpy as np
@@ -31,6 +32,17 @@ def _l2_normalize(mat: np.ndarray) -> np.ndarray:
 class BGEM3Embedder:
     dim = 1024
 
+    def release(self) -> None:
+        """释放已加载权重（幂等）；下次访问 .model 自动从 HF 缓存重载。"""
+        self._model = None
+        try:
+            import torch
+
+            if torch.backends.mps.is_available():
+                torch.mps.empty_cache()
+        except Exception:  # noqa: BLE001, S110 —— 清理失败不致命且无可记录处
+            pass
+
     def __init__(
         self, model_name: str = "BAAI/bge-m3", device: str = "mps",
         dtype: str = "float16", batch_size: int = 32,
@@ -55,9 +67,12 @@ class BGEM3Embedder:
         return self._model
 
     def embed(self, texts: list[str]) -> np.ndarray:
+        cb = getattr(self, "_on_use", None)
+        cb and cb()  # TTL 计时：hub 注入的使用回调
         if not texts:
             return np.empty((0, self.dim), dtype="float32")
-        out = self.model.encode(
+        model = self.model  # 局部引用：卸载不影响 in-flight 调用
+        out = model.encode(
             texts, batch_size=self._batch_size, max_length=1024
         )["dense_vecs"]
         return _l2_normalize(np.asarray(out, dtype="float32"))
@@ -67,6 +82,16 @@ class BGEM3Embedder:
 
 
 class BGEM3Reranker:
+    def release(self) -> None:
+        self._model = None
+        try:
+            import torch
+
+            if torch.backends.mps.is_available():
+                torch.mps.empty_cache()
+        except Exception:  # noqa: BLE001, S110 —— 清理失败不致命且无可记录处
+            pass
+
     def __init__(
         self, model_name: str = "BAAI/bge-reranker-v2-m3", device: str = "mps",
         dtype: str = "float16",
@@ -88,9 +113,12 @@ class BGEM3Reranker:
         return self._model
 
     def rerank(self, query: str, docs: list[str]) -> list[float]:
+        cb = getattr(self, "_on_use", None)
+        cb and cb()  # TTL 计时：hub 注入的使用回调
         if not docs:
             return []
-        scores = self.model.compute_score(
+        model = self.model  # 局部引用：卸载不影响 in-flight 调用
+        scores = model.compute_score(
             [[query, d] for d in docs], normalize=True
         )
         if isinstance(scores, (int, float)):
@@ -99,17 +127,46 @@ class BGEM3Reranker:
 
 
 class ModelHub:
-    """懒加载单例：embedder 在同步/检索首用时构建，reranker 首次 search 才构建。"""
+    """懒加载单例：embedder 在同步/检索首用时构建，reranker 首次 search 才构建。
+
+    TTL 空闲卸载（v1.3）：wrapper 对象常驻（Retriever/Engine 持有引用安全），
+    maybe_unload 在空闲超时后仅释放权重（release()），下次使用自动重载。
+    """
 
     def __init__(
         self, settings: Settings,
         embedder_factory=None, reranker_factory=None,
+        ttl_secs: int = 0, clock=time.monotonic,
     ):
         self._settings = settings
         self._embedder_factory = embedder_factory
         self._reranker_factory = reranker_factory
         self._embedder: Embedder | None = None
         self._reranker: Reranker | None = None
+        self._ttl_secs = ttl_secs
+        self._clock = clock
+        self._last_used: float | None = None
+
+    def _touch(self) -> None:
+        self._last_used = self._clock()
+
+    def release(self) -> None:
+        """立即释放两个模型的权重（幂等）。"""
+        for model in (self._embedder, self._reranker):
+            release = getattr(model, "release", None)
+            if release is not None:
+                release()
+        self._last_used = None
+
+    def maybe_unload(self, now: float | None = None) -> bool:
+        """空闲超过 TTL 且已加载过 → 释放权重并返回 True；否则 False。"""
+        if self._ttl_secs <= 0 or self._last_used is None:
+            return False
+        now = self._clock() if now is None else now
+        if now - self._last_used <= self._ttl_secs:
+            return False
+        self.release()
+        return True
 
     @property
     def embedder(self) -> Embedder:
@@ -121,6 +178,8 @@ class ModelHub:
                 self._embedder = BGEM3Embedder(
                     s.embed_model, s.device, s.dtype, s.embed_batch
                 )
+            self._embedder._on_use = self._touch
+        self._touch()
         return self._embedder
 
     @property
@@ -131,4 +190,6 @@ class ModelHub:
             else:
                 s = self._settings
                 self._reranker = BGEM3Reranker(s.rerank_model, s.device, s.dtype)
+            self._reranker._on_use = self._touch
+        self._touch()
         return self._reranker

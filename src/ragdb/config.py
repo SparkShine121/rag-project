@@ -82,6 +82,7 @@ class Settings(BaseSettings):
     device: str = "mps"
     dtype: Literal["float16", "float32"] = "float16"
     embed_batch: int = 32
+    unload_idle_secs: int = 1800  # 模型空闲卸载 TTL（秒）；0 = 常驻不卸载
 
     @field_validator("vault_path", "data_dir", mode="after")
     @classmethod
