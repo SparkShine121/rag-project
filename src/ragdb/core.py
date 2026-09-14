@@ -59,7 +59,7 @@ class Core:
     def hub(self):
         from ragdb.models.hub import ModelHub
 
-        return ModelHub(self.settings)
+        return ModelHub(self.settings, ttl_secs=self.settings.unload_idle_secs)
 
     @cached_property
     def embedder(self):
