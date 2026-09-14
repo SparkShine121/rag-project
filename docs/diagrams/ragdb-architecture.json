@@ -1,0 +1,432 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "ragdb v1.2 个人 RAG 数据库架构",
+    "locale": "zh-CN",
+    "output": "ragdb-architecture.html",
+    "quality_profile": "standard",
+    "views": [
+      {
+        "id": "ingest-path",
+        "label": "同步管线（单写者）",
+        "focus": [
+          "src-obsidian",
+          "src-github",
+          "src-folder",
+          "connectors",
+          "pipeline",
+          "engine",
+          "lancedb"
+        ],
+        "note": "知识源经连接器前缀化、分发切块，由唯一写者引擎落入向量库。"
+      },
+      {
+        "id": "query-path",
+        "label": "检索路径",
+        "focus": [
+          "consumers",
+          "mcp-server",
+          "fastapi",
+          "retriever",
+          "models",
+          "lancedb"
+        ],
+        "note": "消费端经 stdio MCP 或 HTTP REST 到达检索器，嵌入与重排走本机 MPS。"
+      },
+      {
+        "id": "sources",
+        "label": "多知识源与过滤",
+        "focus": [
+          "src-obsidian",
+          "src-github",
+          "src-folder",
+          "connectors"
+        ],
+        "note": "obsidian 恒为 md-only；folder/github 按 [ingest] 白名单收多类型。"
+      }
+    ],
+    "viewBox": [
+      1400,
+      640
+    ]
+  },
+  "components": [
+    {
+      "id": "connectors",
+      "type": "backend",
+      "label": "Source Connectors",
+      "sublabel": "MultiSource 前缀化",
+      "pos": [
+        300,
+        435
+      ],
+      "size": [
+        180,
+        58
+      ]
+    },
+    {
+      "id": "consumers",
+      "type": "external",
+      "label": "消费端 Agents",
+      "sublabel": "Claude · Hermes · OpenClaw",
+      "pos": [
+        500,
+        33
+      ],
+      "size": [
+        180,
+        58
+      ]
+    },
+    {
+      "id": "engine",
+      "type": "backend",
+      "label": "SyncEngine",
+      "sublabel": "唯一写者 · ragdb.lock",
+      "pos": [
+        830,
+        435
+      ],
+      "size": [
+        180,
+        58
+      ],
+      "tag": "单写者"
+    },
+    {
+      "id": "fastapi",
+      "type": "backend",
+      "label": "FastAPI",
+      "sublabel": "REST :8770 + /mcp",
+      "pos": [
+        640,
+        156
+      ],
+      "size": [
+        180,
+        58
+      ]
+    },
+    {
+      "id": "lancedb",
+      "type": "database",
+      "label": "LanceDB",
+      "sublabel": "向量+元数据 · SQLite 状态",
+      "pos": [
+        700,
+        279
+      ],
+      "size": [
+        170,
+        58
+      ]
+    },
+    {
+      "id": "mcp-server",
+      "type": "backend",
+      "label": "ragdb-mcp",
+      "sublabel": "stdio MCP · 只读",
+      "pos": [
+        240,
+        156
+      ],
+      "size": [
+        180,
+        58
+      ]
+    },
+    {
+      "id": "models",
+      "type": "backend",
+      "label": "BAAI 模型层",
+      "sublabel": "bge-m3 + reranker · MPS",
+      "pos": [
+        960,
+        271
+      ],
+      "size": [
+        190,
+        58
+      ],
+      "tag": "fp16"
+    },
+    {
+      "id": "pipeline",
+      "type": "backend",
+      "label": "IngestPipeline",
+      "sublabel": "md/代码/PDF(+OCR) 切块",
+      "pos": [
+        560,
+        435
+      ],
+      "size": [
+        190,
+        58
+      ]
+    },
+    {
+      "id": "retriever",
+      "type": "backend",
+      "label": "Retriever",
+      "sublabel": "召回→重排→聚合",
+      "pos": [
+        440,
+        279
+      ],
+      "size": [
+        180,
+        58
+      ]
+    },
+    {
+      "id": "src-folder",
+      "type": "external",
+      "label": "本地文件夹",
+      "sublabel": "folder 类型",
+      "pos": [
+        40,
+        541
+      ],
+      "size": [
+        180,
+        58
+      ]
+    },
+    {
+      "id": "src-github",
+      "type": "external",
+      "label": "GitHub 仓库",
+      "sublabel": "公开/私有 · token",
+      "pos": [
+        40,
+        435
+      ],
+      "size": [
+        180,
+        58
+      ]
+    },
+    {
+      "id": "src-obsidian",
+      "type": "external",
+      "label": "Obsidian Vault",
+      "sublabel": "md-only",
+      "pos": [
+        40,
+        328
+      ],
+      "size": [
+        180,
+        58
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "ragdb 本机（127.0.0.1 · vault 全链路只读）",
+      "wraps": [
+        "mcp-server",
+        "fastapi",
+        "retriever",
+        "models",
+        "connectors",
+        "pipeline",
+        "engine",
+        "lancedb"
+      ]
+    },
+    {
+      "kind": "security-group",
+      "label": "单写者边界 ragdb.lock",
+      "wraps": [
+        "engine",
+        "lancedb"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "consumers-mcp",
+      "from": "consumers",
+      "to": "mcp-server",
+      "label": "stdio",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "consumers-rest",
+      "from": "consumers",
+      "to": "fastapi",
+      "label": "HTTP REST",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 38
+    },
+    {
+      "id": "mcp-retriever",
+      "from": "mcp-server",
+      "to": "retriever",
+      "label": "search / get_note / list_notes",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        555,
+        246
+      ]
+    },
+    {
+      "id": "rest-retriever",
+      "from": "fastapi",
+      "to": "retriever",
+      "label": "POST /api/v1/search",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "retriever-models",
+      "from": "retriever",
+      "to": "models",
+      "label": "query 嵌入 + 重排",
+      "fromSide": "top",
+      "toSide": "top",
+      "labelAt": [
+        815,
+        234
+      ],
+      "labelDy": -26,
+      "via": [
+        [
+          530,
+          242
+        ],
+        [
+          1055,
+          242
+        ]
+      ]
+    },
+    {
+      "id": "retriever-lancedb",
+      "from": "retriever",
+      "to": "lancedb",
+      "label": "向量检索",
+      "fromSide": "right",
+      "toSide": "left",
+      "labelAt": [
+        930,
+        357
+      ],
+      "labelDy": -23
+    },
+    {
+      "id": "obsidian-connectors",
+      "from": "src-obsidian",
+      "to": "connectors",
+      "label": "md 文件",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "github-connectors",
+      "from": "src-github",
+      "to": "connectors",
+      "label": "增量",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "folder-connectors",
+      "from": "src-folder",
+      "to": "connectors",
+      "label": "多类型",
+      "fromSide": "right",
+      "toSide": "top"
+    },
+    {
+      "id": "connectors-pipeline",
+      "from": "connectors",
+      "to": "pipeline",
+      "label": "RawDocument",
+      "fromSide": "right",
+      "toSide": "left",
+      "labelAt": [
+        270,
+        467
+      ],
+      "labelDy": -33
+    },
+    {
+      "id": "pipeline-engine",
+      "from": "pipeline",
+      "to": "engine",
+      "label": "chunks",
+      "fromSide": "right",
+      "toSide": "left",
+      "labelAt": [
+        515,
+        467
+      ],
+      "labelDy": -33
+    },
+    {
+      "id": "engine-lancedb",
+      "from": "engine",
+      "to": "lancedb",
+      "label": "写入",
+      "variant": "emphasis",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "labelAt": [
+        760,
+        414
+      ],
+      "labelDx": -35
+    },
+    {
+      "id": "engine-models",
+      "from": "engine",
+      "to": "models",
+      "label": "嵌入",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "labelAt": [
+        810,
+        512
+      ],
+      "labelDx": 35
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "多知识源（v1.2）",
+      "items": [
+        "[[sources]] 可同时接入 Obsidian vault、GitHub 仓库与本地 folder",
+        "来源名即检索路径前缀（obsidian/…、myrepo/…）",
+        "GitHub 走 Git Blobs API，blob-sha 增量零下载判变更"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "单写者摄取管线",
+      "items": [
+        "SyncEngine 持 ragdb.lock，是唯一写者",
+        "IngestPipeline 按扩展名分发：md / 代码启发式 / PDF 按页",
+        "移动零重嵌入；来源增删自动清理孤儿索引"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "检索与模型",
+      "items": [
+        "Retriever：召回 top-20 → 精排前 5 → small-to-big 聚合",
+        "bge-m3 + bge-reranker 跑在本机 MPS（fp16）",
+        "扫描版 PDF 自动回退 Apple Vision OCR"
+      ]
+    }
+  ]
+}
