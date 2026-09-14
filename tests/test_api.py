@@ -111,3 +111,30 @@ def test_mcp_route_mounted(client):
     # "/" 兜底挂载承载 MCP（/api 路由优先命中）；真实握手见 test_final_fixes
     mounts = [r for r in app.routes if type(r).__name__ == "Mount"]
     assert any(m.path in ("", "/") for m in mounts)  # Starlette 把 "/" 规范化为 ""
+
+
+def test_sync_loop_triggers_model_unload_check(tmp_path: Path):
+    """v1.3：同步循环每轮调用 hub.maybe_unload（TTL 空闲卸载检查）。"""
+    import time
+
+    (tmp_path / "vault").mkdir(exist_ok=True)
+    settings = Settings.load(path=None).model_copy(
+        update={"data_dir": tmp_path / "data", "vault_path": tmp_path / "vault",
+                "interval_secs": 1}
+    )
+    core = Core.from_settings(settings)
+
+    class SpyHub:
+        def __init__(self):
+            self.calls = 0
+
+        def maybe_unload(self):
+            self.calls += 1
+
+    spy = SpyHub()
+    core.__dict__["hub"] = spy
+    core.__dict__["engine"] = FakeEngine()
+
+    with TestClient(create_app(core)):
+        time.sleep(1.4)  # interval_secs=1 → 至少一轮
+    assert spy.calls >= 1

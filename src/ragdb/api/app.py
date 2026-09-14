@@ -86,6 +86,7 @@ def create_app(core) -> FastAPI:
                             report = await asyncio.to_thread(core.engine.run)
                             if report.failed:
                                 logger.warning("同步存在失败项: %s", report.failed)
+                            core.hub.maybe_unload()  # TTL 空闲卸载检查（v1.3）
                         except Exception:  # 循环不退出
                             logger.exception("后台同步失败")
                         await asyncio.sleep(core.settings.interval_secs)
