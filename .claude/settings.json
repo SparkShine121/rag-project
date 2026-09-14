@@ -9,6 +9,12 @@
             "command": "python3 -c '\nimport json,sys\nd=json.load(sys.stdin)\ncmd=(d.get(\"tool_input\") or {}).get(\"command\",\"\") or \"\"\nif \"| head\" in cmd or \"|head\" in cmd:\n    print(\"pipefail 链内禁用 | head（SIGPIPE 141 误报，已三犯）——改用内建限量参数（git log -n、--max-count 等）\", file=sys.stderr)\n    sys.exit(2)\n'",
             "timeout": 10,
             "statusMessage": "检查 | head 使用…"
+          },
+          {
+            "type": "command",
+            "command": "python3 -c '\nimport json,sys,subprocess\nd=json.load(sys.stdin)\ncmd=(d.get(\"tool_input\") or {}).get(\"command\",\"\") or \"\"\nif \"git commit\" in cmd:\n    branch=subprocess.run([\"git\",\"branch\",\"--show-current\"],capture_output=True,text=True).stdout.strip()\n    if branch==\"main\":\n        print(\"main 是稳定发布分支：git commit 已拦截——请在 dev/feature 分支提交（错题集分支纪律，2026-09-13 机械拦截）\", file=sys.stderr)\n        sys.exit(2)\n'",
+            "timeout": 10,
+            "statusMessage": "检查 main 分支提交…"
           }
         ]
       }
