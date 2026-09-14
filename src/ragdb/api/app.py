@@ -50,9 +50,11 @@ def _health_payload(core) -> dict:
     except Exception:  # noqa: BLE001 —— health 必须反映而非传播故障
         note_count, db_ok, last_sync = 0, False, None
     models_loaded = core.hub._embedder is not None
+    idle = core.hub.idle_secs()
     return {"status": "ok" if db_ok else "degraded", "db_ok": db_ok,
             "models_loaded": models_loaded, "note_count": note_count,
-            "last_sync_at": last_sync}
+            "last_sync_at": last_sync, "model_ttl_secs": core.hub._ttl_secs,
+            "model_idle_secs": round(idle, 1) if idle is not None else None}
 
 
 def create_app(core) -> FastAPI:

@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from typing import Protocol, runtime_checkable
 
 import numpy as np
 
 from ragdb.config import Settings
+
+logger = logging.getLogger("ragdb.models")
 
 
 @runtime_checkable
@@ -155,16 +158,23 @@ class ModelHub:
         for model in (self._embedder, self._reranker):
             release = getattr(model, "release", None)
             if release is not None:
+                logger.warning("释放模型权重: %s", type(model).__name__)
                 release()
         self._last_used = None
+
+    def idle_secs(self) -> float | None:
+        """距上次使用的秒数；未使用过返回 None。"""
+        return None if self._last_used is None else self._clock() - self._last_used
 
     def maybe_unload(self, now: float | None = None) -> bool:
         """空闲超过 TTL 且已加载过 → 释放权重并返回 True；否则 False。"""
         if self._ttl_secs <= 0 or self._last_used is None:
             return False
         now = self._clock() if now is None else now
-        if now - self._last_used <= self._ttl_secs:
+        idle = now - self._last_used
+        if idle <= self._ttl_secs:
             return False
+        logger.warning("模型空闲 %.0fs 超过 TTL %ds，执行卸载", idle, self._ttl_secs)
         self.release()
         return True
 
