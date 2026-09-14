@@ -32,7 +32,16 @@ uv run ragdb serve                  # 常驻服务（REST :8770 + /mcp + 30s 后
 { "ragdb": { "command": "uv", "args": ["run", "ragdb-mcp"], "cwd": "<本项目路径>" } }
 ```
 
-接入 Hermes：`~/.hermes/config.yaml` 的 `mcp_servers` 同上；或指向 `http://127.0.0.1:8770/mcp`。其它 agent（含无 MCP 能力的）见接入指南。
+接入 Hermes：推荐用仓库自带的 **`ragdb-mcp-launcher.sh`** 启动器（自动固定 cwd、启用模型离线模式、直连 venv 入口，不依赖 uv/PATH）：
+
+```yaml
+# ~/.hermes/config.yaml
+mcp_servers:
+  ragdb:
+    command: "<本项目路径>/ragdb-mcp-launcher.sh"
+```
+
+也可用标准方式（`command: "uv", args: ["run", "ragdb-mcp"], cwd: <项目路径>`）或指向 `http://127.0.0.1:8770/mcp`。其它 agent（含无 MCP 能力的）见接入指南。
 
 ## 文档
 
