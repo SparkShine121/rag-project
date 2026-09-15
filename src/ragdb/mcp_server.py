@@ -2,7 +2,32 @@
 
 from __future__ import annotations
 
+import logging
+import threading
+
 from mcp.server.fastmcp import FastMCP
+
+logger = logging.getLogger("ragdb.mcp")
+
+
+def start_idle_unloader(core, interval_secs: int = 60):
+    """守护巡检线程：每 interval_secs 秒调用 hub.maybe_unload（TTL 空闲卸载）。
+
+    返回 (thread, stop_event)。进程**绝不**自行退出——仅释放权重，
+    stdio 连接保持存活（agent 会话安全）。
+    """
+    stop = threading.Event()
+
+    def watch():
+        while not stop.wait(interval_secs):
+            try:
+                core.hub.maybe_unload()
+            except Exception:
+                logger.exception("模型空闲卸载巡检失败")
+
+    thread = threading.Thread(target=watch, daemon=True, name="ragdb-idle-unloader")
+    thread.start()
+    return thread, stop
 
 
 def _tool_search(core, query: str, top_k: int = 5, folder: str | None = None,
