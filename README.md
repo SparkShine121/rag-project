@@ -61,6 +61,7 @@ mcp_servers:
 | v0.1.1 | 多渠道 `[[sources]]`（Obsidian + GitHub 仓库）+ blob-sha 增量 |
 | v0.1.2 | 多类型内容：代码启发式切块、PDF 按页 + Apple Vision OCR、folder 来源、`[ingest]` 过滤 |
 | v0.1.3 | 模型空闲卸载（TTL）：空闲自动释放权重（footprint 实测省 62%），下次检索自动重载；health 暴露 TTL/空闲观测字段 |
+| v0.1.3.1 | stdio MCP（ragdb-mcp）接入同一 TTL 空闲卸载：进程保持存活仅释放权重，agent 会话连接不断开 |
 
 ## 开发
 

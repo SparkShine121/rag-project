@@ -46,8 +46,9 @@ device = "mps"
 dtype = "float16"
 # 嵌入批大小
 embed_batch = 32
-# 模型空闲卸载 TTL（秒，v1.3）：serve 空闲超过该时长自动释放模型权重
-# （footprint 实测 3.7GB → 1.4GB，省 62%）；再次检索自动重载（~19s）。0 = 常驻不卸载
+# 模型空闲卸载 TTL（秒，v1.3）：serve 与 stdio MCP（ragdb-mcp）进程空闲超过该时长
+# 自动释放模型权重（footprint 实测 3.7GB → 1.4GB，省 62%）；再次检索自动重载（~19s）。
+# stdio MCP 进程仅释放权重、绝不退出（保持 agent 会话连接）。0 = 常驻不卸载
 unload_idle_secs = 1800
 
 # ── 知识来源（v1.1 多渠道 / v1.2 多类型）───────────────

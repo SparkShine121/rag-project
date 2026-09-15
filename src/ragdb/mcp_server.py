@@ -96,4 +96,5 @@ def main() -> None:
     from ragdb.core import Core
 
     core = Core.from_settings(Settings.load())
+    start_idle_unloader(core)  # TTL 空闲卸载巡检（v1.3.1）：进程保持存活，仅释放权重
     build_mcp(core).run(transport="stdio")
