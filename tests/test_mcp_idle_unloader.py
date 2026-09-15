@@ -25,13 +25,20 @@ def _hub(ttl: int, clock):
 
 
 def test_watcher_calls_maybe_unload_periodically():
-    t = [0.0]
-    hub = _hub(1800, clock=lambda: t[0])
-    core = _Core(hub)
-    thread, stop = start_idle_unloader(core, interval_secs=1)
+    class SpyHub:
+        def __init__(self):
+            self.calls = 0
+
+        def maybe_unload(self):
+            self.calls += 1
+
+    hub = SpyHub()
+    thread, stop = start_idle_unloader(_Core(hub), interval_secs=0.1)
     try:
-        time.sleep(0.35)  # interval=1s → 0 次触发属正常，只验证线程活着在等
-        assert thread.is_alive()
+        deadline = time.time() + 2
+        while hub.calls < 3 and time.time() < deadline:
+            time.sleep(0.02)
+        assert hub.calls >= 3  # 跨多个 tick 反复调用（周期性契约）
     finally:
         stop.set()
         thread.join(timeout=2)
@@ -56,21 +63,29 @@ def test_watcher_triggers_unload_after_ttl():
         thread.join(timeout=2)
 
 
-def test_watcher_survives_hub_exception():
+def test_watcher_survives_hub_exception(caplog):
     class BoomHub:
-        _ttl_secs = 1
+        def __init__(self):
+            self.calls = 0
 
         def maybe_unload(self):
+            self.calls += 1
             raise RuntimeError("boom")
 
-    core = _Core(BoomHub())
-    thread, stop = start_idle_unloader(core, interval_secs=1)
+    hub = BoomHub()
+    thread, stop = start_idle_unloader(_Core(hub), interval_secs=0.1)
     try:
-        time.sleep(0.35)
-        assert thread.is_alive()  # 异常不杀线程
+        deadline = time.time() + 2
+        while hub.calls == 0 and time.time() < deadline:
+            time.sleep(0.02)
+        assert hub.calls >= 1  # 巡检确实执行并抛出异常（旧版此步为 0 次——空转假绿）
+        time.sleep(0.25)  # 再跨几个 tick
+        assert hub.calls >= 2 and thread.is_alive()  # 异常不杀线程
     finally:
         stop.set()
         thread.join(timeout=2)
+    assert not thread.is_alive()
+    assert "模型空闲卸载巡检失败" in caplog.text  # 异常被捕获且记日志
 
 
 def test_watcher_respects_stop_event_promptly():

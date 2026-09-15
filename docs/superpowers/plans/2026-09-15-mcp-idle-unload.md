@@ -18,14 +18,14 @@
 
 **Files:** Modify `src/ragdb/mcp_server.py`、`tests/test_mcp_idle_unloader.py`
 **Produces:** `start_idle_unloader(core, interval_secs=60) -> tuple[threading.Thread, threading.Event]`（daemon 线程 + stop 事件；循环 `stop.wait(interval)` → `core.hub.maybe_unload()`，异常捕获记 WARNING）。
-- [ ] RED（巡检触发 spy、ttl=0 时 maybe_unload 自行 no-op、stop 事件结束线程、巡检异常不杀线程）→ GREEN → 提交
+- [x] RED（巡检触发 spy、ttl=0 时 maybe_unload 自行 no-op、stop 事件结束线程、巡检异常不杀线程）→ GREEN → 提交
 
 ### Task 2: main 接线 + 文档
 
 **Files:** Modify `src/ragdb/mcp_server.py`（main 启动 watcher）、`ragdb.toml`（unload_idle_secs 注释补 MCP 进程语义）、`docs/智能体接入指南.md`（内存行为补 MCP 进程行）、Obsidian；Tests：main 薄不直测（thin wrapper），以 T1 覆盖
-- [ ] 接线 + 文档 → 全量回归 → 提交
+- [x] 接线 + 文档 → 全量回归 → 提交
 
 ### Task 3: 真实 stdio 冒烟
 
 脚本驱动 `ragdb-mcp-launcher.sh`（stdin 发 initialize/initialized/tools-call search）→ 进程 footprint（加载态）→ 空闲超 TTL → footprint（卸载态）→ 再 search（重载）。数据入汇报。
-- [ ] 实测对比
+- [x] 实测对比
