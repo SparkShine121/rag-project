@@ -128,6 +128,9 @@ def test_sync_loop_triggers_model_unload_check(tmp_path: Path):
         def __init__(self):
             self.calls = 0
 
+        def idle_secs(self):
+            return None  # v1.3.2 判定前置查询；None → 不退出，走 maybe_unload
+
         def maybe_unload(self):
             self.calls += 1
 

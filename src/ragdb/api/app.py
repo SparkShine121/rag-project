@@ -6,6 +6,7 @@ import asyncio
 import contextlib
 import fcntl
 import logging
+import os
 from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import asdict
 
@@ -17,6 +18,19 @@ from pydantic import BaseModel, Field, field_validator
 from ragdb.mcp_server import build_mcp
 
 logger = logging.getLogger("ragdb.api")
+
+
+def idle_exit_due(idle: float | None, ttl: int, supervised: bool, inflight: int) -> bool:
+    """v1.3.2 supervised exit 判定：有监督 + 空闲严格超 TTL + 无在飞检索才允许退出。
+
+    - supervised=False（终端直跑）永不退出（无人拉起 = 服务中断），回落 v1.3 卸载行为
+    - inflight>0 时绝不退出（重连只保下次调用，不保进行中的调用）
+    - idle=None（模型从未加载）不退出（已是目标内存，避免重启 churn）
+    """
+    if not supervised or inflight > 0 or idle is None:
+        return False
+    return idle > ttl
+
 
 
 class SearchRequest(BaseModel):
@@ -59,6 +73,8 @@ def _health_payload(core) -> dict:
 
 def create_app(core) -> FastAPI:
     mcp_app = build_mcp(core).streamable_http_app()
+    # v1.3.2 supervised exit：部署态标志由 LaunchAgent plist 注入（RAGDB_SUPERVISED=1）
+    supervised = os.environ.get("RAGDB_SUPERVISED") == "1"
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -88,7 +104,22 @@ def create_app(core) -> FastAPI:
                             report = await asyncio.to_thread(core.engine.run)
                             if report.failed:
                                 logger.warning("同步存在失败项: %s", report.failed)
-                            core.hub.maybe_unload()  # TTL 空闲卸载检查（v1.3）
+                            if idle_exit_due(
+                                core.hub.idle_secs(),
+                                core.settings.unload_idle_secs,
+                                supervised,
+                                app.state.search_inflight,
+                            ):
+                                logger.warning(
+                                    "模型空闲 %.0fs 超过 TTL %ds，supervised 模式退出进程"
+                                    "（launchd KeepAlive 将重启全新空进程）",
+                                    core.hub.idle_secs(),
+                                    core.settings.unload_idle_secs,
+                                )
+                                # 硬退出绕开 SIGTERM 优雅关闭的已知挂起；
+                                # fcntl 锁随进程死亡自动释放，SQLite 崩溃安全
+                                os._exit(0)
+                            core.hub.maybe_unload()  # TTL 空闲卸载检查（v1.3，无监督路径）
                         except Exception:  # 循环不退出
                             logger.exception("后台同步失败")
                         await asyncio.sleep(core.settings.interval_secs)
@@ -105,6 +136,7 @@ def create_app(core) -> FastAPI:
                 lock_file.close()
 
     app = FastAPI(title="ragdb", version="0.1.0", lifespan=lifespan)
+    app.state.search_inflight = 0  # v1.3.2：在飞检索计数，supervised exit 的安全阀
 
     @app.exception_handler(HTTPException)
     async def http_error(request: Request, exc: HTTPException):
@@ -120,9 +152,13 @@ def create_app(core) -> FastAPI:
 
     @app.post("/api/v1/search")
     async def search(req: SearchRequest):
-        results = core.retriever.search(
-            req.query, top_k=req.top_k, folder=req.folder, tags=req.tags
-        )
+        app.state.search_inflight += 1
+        try:
+            results = core.retriever.search(
+                req.query, top_k=req.top_k, folder=req.folder, tags=req.tags
+            )
+        finally:
+            app.state.search_inflight -= 1
         return [asdict(r) for r in results]
 
     @app.get("/api/v1/notes")
