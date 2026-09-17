@@ -2,6 +2,7 @@
 
 import asyncio
 
+from ragdb.core import InflightTracker
 from ragdb.mcp_server import (
     _tool_get_note,
     _tool_list_notes,
@@ -47,6 +48,7 @@ class StubCore:
     def __init__(self, retriever, store):
         self.retriever = retriever
         self.store = store
+        self.search_inflight = InflightTracker()  # v1.3.2：_tool_search 计数契约
 
 
 def _result(sid) -> SearchResult:

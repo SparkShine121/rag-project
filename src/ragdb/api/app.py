@@ -24,13 +24,13 @@ def idle_exit_due(idle: float | None, ttl: int, supervised: bool, inflight: int)
     """v1.3.2 supervised exit 判定：有监督 + 空闲严格超 TTL + 无在飞检索才允许退出。
 
     - supervised=False（终端直跑）永不退出（无人拉起 = 服务中断），回落 v1.3 卸载行为
+    - ttl<=0 = 常驻不卸载不退出（ragdb.toml 契约，镜像 hub.maybe_unload 守卫）
     - inflight>0 时绝不退出（重连只保下次调用，不保进行中的调用）
     - idle=None（模型从未加载）不退出（已是目标内存，避免重启 churn）
     """
-    if not supervised or inflight > 0 or idle is None:
+    if not supervised or ttl <= 0 or inflight > 0 or idle is None:
         return False
     return idle > ttl
-
 
 
 class SearchRequest(BaseModel):
@@ -105,15 +105,15 @@ def create_app(core) -> FastAPI:
                             if report.failed:
                                 logger.warning("同步存在失败项: %s", report.failed)
                             if idle_exit_due(
-                                core.hub.idle_secs(),
+                                idle := core.hub.idle_secs(),
                                 core.settings.unload_idle_secs,
                                 supervised,
-                                app.state.search_inflight,
+                                core.search_inflight.count,
                             ):
                                 logger.warning(
                                     "模型空闲 %.0fs 超过 TTL %ds，supervised 模式退出进程"
                                     "（launchd KeepAlive 将重启全新空进程）",
-                                    core.hub.idle_secs(),
+                                    idle,
                                     core.settings.unload_idle_secs,
                                 )
                                 # 硬退出绕开 SIGTERM 优雅关闭的已知挂起；
@@ -136,7 +136,6 @@ def create_app(core) -> FastAPI:
                 lock_file.close()
 
     app = FastAPI(title="ragdb", version="0.1.0", lifespan=lifespan)
-    app.state.search_inflight = 0  # v1.3.2：在飞检索计数，supervised exit 的安全阀
 
     @app.exception_handler(HTTPException)
     async def http_error(request: Request, exc: HTTPException):
@@ -152,13 +151,10 @@ def create_app(core) -> FastAPI:
 
     @app.post("/api/v1/search")
     async def search(req: SearchRequest):
-        app.state.search_inflight += 1
-        try:
+        with core.search_inflight.track():  # 与 MCP 通道共用计数（终审 S2）
             results = core.retriever.search(
                 req.query, top_k=req.top_k, folder=req.folder, tags=req.tags
             )
-        finally:
-            app.state.search_inflight -= 1
         return [asdict(r) for r in results]
 
     @app.get("/api/v1/notes")

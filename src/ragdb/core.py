@@ -2,10 +2,36 @@
 
 from __future__ import annotations
 
+import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from functools import cached_property
 
 from ragdb.config import Settings
+
+
+class InflightTracker:
+    """在飞检索计数（线程安全）：REST 与 MCP 两通道共用的 supervised exit 安全阀（终审 S2）。"""
+
+    def __init__(self) -> None:
+        self._count = 0
+        self._lock = threading.Lock()
+
+    @contextmanager
+    def track(self) -> Iterator[int]:
+        with self._lock:
+            self._count += 1
+        try:
+            yield self._count
+        finally:
+            with self._lock:
+                self._count -= 1
+
+    @property
+    def count(self) -> int:
+        with self._lock:
+            return self._count
 
 
 @dataclass
@@ -60,6 +86,10 @@ class Core:
         from ragdb.models.hub import ModelHub
 
         return ModelHub(self.settings, ttl_secs=self.settings.unload_idle_secs)
+
+    @cached_property
+    def search_inflight(self) -> InflightTracker:
+        return InflightTracker()
 
     @cached_property
     def embedder(self):

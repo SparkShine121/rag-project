@@ -34,7 +34,8 @@ def _tool_search(core, query: str, top_k: int = 5, folder: str | None = None,
                  tags: list[str] | None = None) -> str:
     if not query.strip():
         return "查询词为空，请提供要检索的内容。"
-    results = core.retriever.search(query, top_k=top_k, folder=folder, tags=tags)
+    with core.search_inflight.track():  # 与 REST 共用计数：supervised exit 的安全阀
+        results = core.retriever.search(query, top_k=top_k, folder=folder, tags=tags)
     if not results:
         return "未找到相关内容。"
     blocks = []
