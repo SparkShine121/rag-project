@@ -62,7 +62,12 @@ def test_tracker_thread_safe_counts():
     import threading
 
     tracker = InflightTracker()
-    threads = [threading.Thread(target=lambda: list(tracker.track())) for _ in range(20)]
+
+    def worker():
+        with tracker.track():
+            pass
+
+    threads = [threading.Thread(target=worker) for _ in range(20)]
     for t in threads:
         t.start()
     for t in threads:
